@@ -13,9 +13,9 @@ from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
-from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
+from backend.geometry import prepare, analyze_pair, contact_surface, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.13.0')
+app = FastAPI(title='ModelCheck 3D', version='0.14.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -166,8 +166,13 @@ def run_analysis(session, ids, job):
     try:
         for i, (a, b) in enumerate(pairs):
             metadata, common = analyze_pair(session['parts'][a]['shape'], session['parts'][b]['shape'])
+            contact = None
+            if metadata['kind'] == 'CONNECTED':
+                contact = contact_surface(session['parts'][a]['shape'], session['parts'][b]['shape'])
             rid = ':'.join(sorted([a, b]))
-            results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
+            results[rid] = {'id': rid, 'part_ids': [a, b], **metadata,
+                            'contact_area': float(contact.area) if contact is not None else 0.,
+                            '_mesh': common, '_contact_mesh': contact}
             job['completed'] = i + 1
         session['relations'].update(results)
         if job['check'] == 'INTERSECTIONS':
@@ -237,6 +242,14 @@ def intersection(sid: str, rid: str):
     if row is None or row['_mesh'] is None:
         raise HTTPException(404, 'Brak geometrii intersekcji.')
     return Response(row['_mesh'].export(file_type='stl'), media_type='application/octet-stream')
+
+
+@app.get('/api/sessions/{sid}/relations/{rid}/contact')
+def contact(sid: str, rid: str):
+    row = session_for(sid)['relations'].get(rid)
+    if row is None or row.get('_contact_mesh') is None:
+        raise HTTPException(404, 'Contact surface geometry not found.')
+    return Response(row['_contact_mesh'].export(file_type='stl'), media_type='application/octet-stream')
 
 
 # A built frontend is served locally by the same process. Vite proxies /api in development.

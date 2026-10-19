@@ -36,6 +36,8 @@ test('Coincident objects are purple and still require manual review', async ({ p
   await page.locator('input[type=file]').setInputFiles([stlBox('original.stl', 0, 8), stlBox('copy.stl', 0, 8), stlBox('other.stl', 20, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Find connections', exact: true }).click();
+  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await page.getByRole('button', { name: 'Connections of copy.stl', exact: true }).click();
   await expect(page.locator('#relations-panel .coincident-label')).toHaveText('Coincident');
   await page.getByRole('button', { name: 'Select pair: copy.stl / original.stl', exact: true }).click();
   for (const name of ['copy.stl', 'original.stl']) {

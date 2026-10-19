@@ -151,3 +151,22 @@ def test_uncertain_mesh_creates_uncertain_unchecked_tasks():
     checked = analyze(sid, {'check': 'INTERSECTIONS'})
     assert len(checked['tasks']) == 2
     assert all(task['result'] == 'UNCERTAIN' and not task['done'] for task in checked['tasks'])
+
+
+def test_contact_surface_endpoint_is_real_area_and_remains_informational():
+    sid = session()
+    client.post(f'/api/sessions/{sid}/demo')
+    result = analyze(sid)
+    row = next(row for row in result['relations'] if row['kind'] == 'CONNECTED')
+    assert row['contact_area'] == pytest.approx(64)
+    assert all(not key.startswith('_') for key in row)
+    response = client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact")
+    assert response.status_code == 200
+    surface = trimesh.load(io.BytesIO(response.content), file_type='stl')
+    assert surface.area == pytest.approx(64)
+    assert np.allclose(surface.vertices[:, 0], -4)
+    for other in result['relations']:
+        if other['kind'] != 'CONNECTED':
+            assert other['contact_area'] == 0
+            assert client.get(f"/api/sessions/{sid}/relations/{other['id']}/contact").status_code == 404
+    assert result['tasks'] == []

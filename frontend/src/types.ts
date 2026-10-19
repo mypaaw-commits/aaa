@@ -1,6 +1,6 @@
 export type Part = { id: string; name: string; size: number; faces: number; solid: boolean; bounds: number[][]; visible: boolean };
 export type Kind = 'INTERSECTION' | 'CONNECTED' | 'DISCONNECTED' | 'UNCERTAIN';
-export type Relation = { id: string; part_ids: [string, string]; kind: Kind; volume: number | null; message: string; coincident: boolean };
+export type Relation = { id: string; part_ids: [string, string]; kind: Kind; volume: number | null; message: string; coincident: boolean; contact_area: number };
 export type CheckKind = 'RELATIONS' | 'INTERSECTIONS';
 export type CheckTask = { id: string; part_id: string; check: 'INTERSECTIONS'; done: boolean; note: string; stale: boolean; result: 'CLEAR' | 'INTERSECTION' | 'UNCERTAIN'; intersections: number; uncertain_pairs: number; coincident_pairs: number };
 export type AnalysisResult = { job: Job | null; relations: Relation[]; tasks: CheckTask[] };

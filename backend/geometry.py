@@ -41,6 +41,80 @@ def bounds_distance(a: Shape, b: Shape) -> float:
     return float(np.linalg.norm(delta))
 
 
+def contact_surface(a: Shape, b: Shape) -> trimesh.Trimesh | None:
+    """Intersect opposing coplanar triangles, without inventing area for edges/gaps.
+
+    Call only for a CONNECTED pair of valid solids with zero common volume.
+    R-tree candidates avoid comparing every source triangle with every target.
+    The tolerance handles roundoff, independently of the connection epsilon.
+    """
+    if len(a.mesh.faces) > len(b.mesh.faces):
+        a, b = b, a
+    coordinate_scale = max(float(np.max(np.abs([a.mesh.bounds, b.mesh.bounds]))), 1.)
+    extent = max(float(np.max([a.mesh.extents, b.mesh.extents])), 1.)
+    tolerance = extent * 1e-10 + np.finfo(float).eps * coordinate_scale * 64
+    triangles_a, triangles_b = a.mesh.triangles, b.mesh.triangles
+    bounds_a = np.stack((triangles_a.min(axis=1), triangles_a.max(axis=1)), axis=1)
+    bounds_b = b.mesh.bounds
+    candidates = np.flatnonzero(np.all(bounds_a[:, 1] >= bounds_b[0] - tolerance, axis=1)
+                                & np.all(bounds_a[:, 0] <= bounds_b[1] + tolerance, axis=1))
+    tree = b.mesh.triangles_tree
+    patches = []
+
+    def cross2(u, v):
+        return u[0] * v[1] - u[1] * v[0]
+
+    for index in candidates:
+        triangle = triangles_a[index]
+        normal = a.mesh.face_normals[index]
+        query = np.concatenate((bounds_a[index, 0] - tolerance, bounds_a[index, 1] + tolerance))
+        nearby = np.array(list(tree.intersection(query)), dtype=int)
+        if not len(nearby):
+            continue
+        nearby = nearby[b.mesh.face_normals[nearby] @ normal < -1 + 1e-10]
+        if not len(nearby):
+            continue
+        coplanar = np.max(np.abs((triangles_b[nearby] - triangle[0]) @ normal), axis=1) <= tolerance
+        nearby = nearby[coplanar]
+        if not len(nearby):
+            continue
+        u = triangle[1] - triangle[0]
+        u /= np.linalg.norm(u)
+        v = np.cross(normal, u)
+        basis = np.column_stack((u, v))
+        subject = (triangle - triangle[0]) @ basis
+        for other_index in nearby:
+            clip = (triangles_b[other_index] - triangle[0]) @ basis
+            if cross2(clip[1] - clip[0], clip[2] - clip[0]) < 0:
+                clip = clip[::-1]
+            polygon = list(subject)
+            for start, end in zip(clip, np.roll(clip, -1, axis=0)):
+                if not polygon:
+                    break
+                edge = end - start
+                output = []
+                previous = polygon[-1]
+                previous_distance = cross2(edge, previous - start)
+                for current in polygon:
+                    distance = cross2(edge, current - start)
+                    # Strict half-planes: touching an edge produces no area.
+                    if (distance >= 0) != (previous_distance >= 0):
+                        output.append(previous + (current - previous) * previous_distance / (previous_distance - distance))
+                    if distance >= 0:
+                        output.append(current)
+                    previous, previous_distance = current, distance
+                polygon = output
+            for offset in range(1, len(polygon) - 1):
+                patch = np.array([polygon[0], polygon[offset], polygon[offset + 1]])
+                if abs(cross2(patch[1] - patch[0], patch[2] - patch[0])) <= tolerance ** 2:
+                    continue
+                patches.append(patch @ basis.T + triangle[0])
+    if not patches:
+        return None
+    vertices = np.asarray(patches).reshape(-1, 3)
+    return trimesh.Trimesh(vertices=vertices, faces=np.arange(len(vertices)).reshape(-1, 3), process=False)
+
+
 def analyze_pair(a: Shape, b: Shape):
     """Returns metadata and optional exact Boolean intersection mesh."""
     base = {'kind': 'UNCERTAIN', 'volume': None, 'message': '', 'coincident': False}

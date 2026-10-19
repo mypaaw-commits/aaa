@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.13
+# ModelCheck 3D — prototype 0.14
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.13**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.14**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -43,7 +43,7 @@ Object activation has been removed. Unselected objects are matte gray; ordinary 
 
 ## Connections and intersections
 
-**Find connections** computes informational links between directly connected parts. Every pair appears once. Click a pair to select and highlight both objects without moving the camera. The magnifier button selects and frames it. **Isolate**, with a separate box icon, selects, isolates and frames the pair. Objects in the chosen pair are made visible; other objects remain visible until isolation is requested.
+**Find connections** computes informational links between directly connected parts. Connections lists every imported object as a collapsed group, including objects with no links. Expand an object to see only the parts linked to it; opening another group closes the previous one. Expanding or closing a group leaves the 3D selection unchanged. Connected, Intersection, Needs review and Coincident have different icons and visible labels. Click a linked part to select and highlight both objects without moving the camera. The magnifier button selects and frames it. **Isolate**, with a separate box icon, selects, isolates and frames the pair. Objects in the chosen pair are made visible; other objects remain visible until isolation is requested.
 
 ![Selected pair with matching object colors and separate connection actions](docs/selected-pair.png)
 
@@ -55,6 +55,10 @@ Object activation has been removed. Unselected objects are matte gray; ordinary 
 **Coincident** identifies two valid solids that occupy the same volume. It is shown in purple in the pair list, part results and intersection overlay. Bounds only identify candidates: both Boolean differences must be empty. Different triangulations of the same solid are accepted; close copies, containment and matching bounds alone are insufficient. This remains an intersection requiring manual review.
 
 ![Coincident solids shown in purple](docs/coincident.png)
+
+**Contact area** is the actual shared surface of two valid solids touching without volume overlap. After analysis, it appears white with **70% opacity**, including inside the assembly. Only the overlapping area of opposing coplanar surface triangles is highlighted. Different triangulations, partial faces, rotated faces and separate patches are supported. Point or edge contact and small gaps do not produce a white patch. Hiding either object or isolating another pair hides the patch. Full volume coincidence remains purple. The white contact overlay is informational and does not create a review task.
+
+![Grouped connections with a white contact surface](docs/connections-grouped.png)
 
 **Transparency** above the 3D view independently toggles object opacity. It works before analysis and remains separate from the intersection overlay; running a check does not turn transparency on.
 
@@ -94,6 +98,7 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 
 | Action | Result |
 | --- | --- |
+| Projection: Perspective / Orthographic | Switch projection while keeping orientation, view center and apparent scale at that center |
 | Middle mouse | Orbit around the center of the current view |
 | Shift + middle mouse | Pan |
 | Wheel | Zoom |
@@ -105,6 +110,8 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 | Frame all visible / double click in 3D | Frame visible objects |
 | Floor | Toggle the grid and axes |
 | Transparency | Toggle object transparency independently of results |
+
+Both projections support framing, picking, orbit, pan, wheel zoom and resizing. Front, Top and 3D change camera direction within the chosen projection.
 
 Ordinary selection and clicking a pair name do not move the camera. Pair framing and isolation explicitly change the view. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
@@ -139,4 +146,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, unique pair inspection, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover contact surface areas and coordinates, edge/point/gap rejection, grouped connections and status icons, perspective/orthographic controls, white contact rendering and visibility, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, unique pair inspection, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

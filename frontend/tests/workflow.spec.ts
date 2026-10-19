@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { loadExample, stlBox } from './fixtures';
 
-test('Unique pair results, independent part reviews, notes and stale checks', async ({ page }, testInfo) => {
+test('Grouped connections, independent part reviews, notes and stale checks', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -19,7 +19,13 @@ test('Unique pair results, independent part reviews, notes and stale checks', as
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Find connections', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
-  await expect(page.locator('#relations-panel .result-pair')).toHaveCount(2);
+  await expect(page.locator('#relations-panel .connection-group-toggle')).toHaveCount(3);
+  await expect(page.locator('#relations-panel .result-pair')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Connections of A.stl', exact: true }).click();
+  await expect(page.locator('#relations-panel .result-pair')).toHaveCount(1);
+  await expect(page.locator('#relations-panel .pair-status')).toHaveText('Connected');
+  await expect(page.locator('#relations-panel .pair-symbol svg')).toHaveClass(/lucide-link/);
+  await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('connections.png') });
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
   await page.waitForTimeout(300);

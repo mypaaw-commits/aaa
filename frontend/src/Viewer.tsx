@@ -7,8 +7,10 @@ import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; pairIds: string[]; coincidentPair: boolean; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; invalidate: () => void };
+export type Projection = 'perspective' | 'orthographic';
+type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; pairIds: string[]; coincidentPair: boolean; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; setProjection: (mode: Projection) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
   object.traverse(child => {
@@ -41,7 +43,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const container = host.current!;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#484848');
-    const camera = new THREE.PerspectiveCamera(40, 1, .01, 100000);
+    let camera: Camera = new THREE.PerspectiveCamera(40, 1, .01, 100000);
+    let aspect = 1;
     camera.up.set(0, 0, 1); camera.position.set(35, -55, 35);
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
@@ -74,22 +77,53 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       if (box.isEmpty()) return;
       const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
       const max = Math.max(size.x, size.y, size.z, .01);
-      const halfVertical = THREE.MathUtils.degToRad(camera.fov / 2);
-      const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
+      const halfVertical = THREE.MathUtils.degToRad(20);
+      const halfHorizontal = Math.atan(Math.tan(halfVertical) * aspect);
       const radius = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, .005);
       const distance = radius / Math.sin(Math.min(halfVertical, halfHorizontal)) * 1.12;
       const direction = camera.position.clone().sub(controls.target).normalize();
       controls.target.copy(center); camera.position.copy(center).addScaledVector(direction, distance);
+      camera.zoom = 1;
+      if (camera instanceof THREE.OrthographicCamera) {
+        const halfHeight = radius * 1.12 / Math.min(1, aspect);
+        camera.top = halfHeight; camera.bottom = -halfHeight;
+        camera.left = -halfHeight * aspect; camera.right = halfHeight * aspect;
+      }
       camera.near = Math.max(max / 10000, .00001); camera.far = Math.max(distance * 100, 1000);
       camera.updateProjectionMatrix(); controls.update(); invalidate();
       grid.position.set(center.x, center.y, box.min.z - max * .001);
       grid.scale.setScalar(Math.max(max * 2 / 80, .001));
       axes.position.copy(grid.position); axes.scale.setScalar(max / 60);
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, invalidate };
+    const setProjection = (mode: Projection) => {
+      if ((camera instanceof THREE.OrthographicCamera) === (mode === 'orthographic')) return;
+      controls.update();
+      const previous = camera;
+      const distance = previous.position.distanceTo(controls.target);
+      const halfHeight = previous instanceof THREE.PerspectiveCamera
+        ? distance * Math.tan(THREE.MathUtils.degToRad(previous.fov / 2)) / previous.zoom
+        : (previous.top - previous.bottom) / (2 * previous.zoom);
+      camera = mode === 'orthographic'
+        ? new THREE.OrthographicCamera(-halfHeight * aspect, halfHeight * aspect, halfHeight, -halfHeight, previous.near, previous.far)
+        : new THREE.PerspectiveCamera(40, aspect, previous.near, previous.far);
+      camera.up.copy(previous.up); camera.quaternion.copy(previous.quaternion); camera.position.copy(previous.position);
+      if (camera instanceof THREE.PerspectiveCamera) {
+        const direction = previous.position.clone().sub(controls.target).normalize();
+        const newDistance = halfHeight / Math.tan(THREE.MathUtils.degToRad(20));
+        camera.position.copy(controls.target).addScaledVector(direction, newDistance);
+        camera.far = Math.max(camera.far, newDistance * 100);
+      }
+      camera.updateProjectionMatrix(); controls.object = camera;
+      if (engine.current) engine.current.camera = camera;
+      controls.update(); invalidate();
+    };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, setProjection, invalidate };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
-      renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); invalidate();
+      renderer.setSize(width, height); aspect = Math.max(width, 1) / Math.max(height, 1);
+      if (camera instanceof THREE.PerspectiveCamera) camera.aspect = aspect;
+      else { camera.right = camera.top * aspect; camera.left = -camera.right; }
+      camera.updateProjectionMatrix(); invalidate();
     }); resize.observe(container);
     let frame = 0;
     const animate = () => {
@@ -123,6 +157,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       dispose(scene); renderer.dispose(); container.removeChild(renderer.domElement); engine.current = null;
     };
   }, []);
+
+  useEffect(() => { engine.current?.setProjection(props.projection); }, [props.projection]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -186,14 +222,20 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const load = async () => {
       for (const relation of props.relations) {
         if (!relation.part_ids.every(id => visible.has(id))) continue;
-        if (relation.kind === 'INTERSECTION' && props.intersections) {
+        const contact = relation.kind === 'CONNECTED' && relation.contact_area > 0;
+        if (contact || relation.kind === 'INTERSECTION' && props.intersections) {
           try {
-            const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/intersection`, { signal: abort.signal });
-            if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
+            const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/${contact ? 'contact' : 'intersection'}`, { signal: abort.signal });
+            if (!response.ok) throw new Error(contact ? 'Unable to load contact surface geometry.' : 'Nie można pobrać obszaru przecięcia.');
             const geometry = loader.parse(await response.arrayBuffer());
             if (cancelled) { geometry.dispose(); return; }
-            const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: relation.coincident ? partColors.coincident : '#b34343', emissive: relation.coincident ? '#331a4d' : '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
-            mesh.renderOrder = 5; e.overlays.add(mesh); e.invalidate();
+            const material = contact
+              ? new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false })
+              : new THREE.MeshStandardMaterial({ color: relation.coincident ? partColors.coincident : '#b34343', emissive: relation.coincident ? '#331a4d' : '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+            const mesh = new THREE.Mesh(geometry, material);
+            // Contact surfaces sit inside the assembly; render the actual patch
+            // through the shells so it is visible without moving either object.
+            mesh.renderOrder = contact ? 6 : 5; e.overlays.add(mesh); e.invalidate();
           } catch (error) { if (!cancelled) latest.current.onError(error instanceof Error ? error.message : String(error)); }
         }
       }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BoxSelect, Copy, Link2, MessageSquare, MousePointer2, X, ZoomIn } from 'lucide-react';
+import { Box, BoxSelect, ChevronDown, ChevronRight, CircleCheck, Copy, Link2, MessageSquare, ScanLine, TriangleAlert, X, ZoomIn } from 'lucide-react';
 import type { CheckTask, Job, Part, Relation } from './types';
 import { partColors } from './types';
 import { useI18n } from './i18n';
@@ -25,6 +25,7 @@ function Notes({ task, name, disabled, onReview, onClose }: { task: CheckTask; n
 export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspected, onChoose, onFrame, onIsolate, onInspect, onReview, name }: Props) {
   const { t, language } = useI18n();
   const [noteId, setNoteId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const noteTask = tasks.find(task => task.id === noteId);
   const notePart = parts.find(part => part.id === noteTask?.part_id);
   const fresh = tasks.length > 0 && tasks.every(task => !task.stale);
@@ -34,12 +35,13 @@ export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspec
     return pair.length === 2 ? [{ relation, pair }] : [];
   }).sort((a, b) => a.pair.map(name).join(' / ').localeCompare(b.pair.map(name).join(' / '), language, { numeric: true }));
   const intersections = fresh ? pairs.filter(row => row.relation.kind === 'INTERSECTION') : [];
-  function pairRow({ relation, pair }: typeof pairs[number], inspect: boolean) {
-    const kind = relation.coincident ? 'coincident' : relation.kind === 'UNCERTAIN' ? 'uncertain' : fresh && relation.kind === 'INTERSECTION' ? 'intersection' : 'connection';
+  function pairRow({ relation, pair }: typeof pairs[number], inspect: boolean, owner?: string) {
+    const kind = relation.coincident ? 'coincident' : relation.kind === 'UNCERTAIN' ? 'uncertain' : relation.kind === 'INTERSECTION' ? 'intersection' : 'connection';
+    const Symbol = relation.coincident ? Copy : relation.kind === 'UNCERTAIN' ? TriangleAlert : relation.kind === 'INTERSECTION' ? ScanLine : Link2;
     const values = { a: name(pair[0]), b: name(pair[1]) };
     return <div className={`result-pair ${inspected === relation.id ? 'inspected' : ''}`} key={relation.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) onChoose(relation); }}>
-      <span className={`pair-symbol ${kind}`} title={t(kind)}>{relation.coincident ? <Copy size={16} /> : <Link2 size={16} />}</span>
-      <button className="pair-files pair-select" aria-label={t('selectPair', values)} aria-pressed={inspected === relation.id} onClick={() => onChoose(relation)}>{pair.map((part, index) => <span key={part.id} title={name(part)}>{inspected === relation.id && <i aria-hidden="true" style={{ background: relation.coincident ? partColors.coincident : index === 0 ? partColors.pairFirst : partColors.pairSecond }} />}{name(part)}</span>)}{relation.coincident && <span className="coincident-label" title={t('coincidentTip')}>{t('coincident')}</span>}</button>
+      <span className={`pair-symbol ${kind}`} title={t(kind)}><Symbol size={16} /></span>
+      <button className="pair-files pair-select" aria-label={t('selectPair', values)} aria-pressed={inspected === relation.id} onClick={() => onChoose(relation)}>{pair.map((part, index) => part.id !== owner && <span key={part.id} title={name(part)}>{inspected === relation.id && <i aria-hidden="true" style={{ background: relation.coincident ? partColors.coincident : index === 0 ? partColors.pairFirst : partColors.pairSecond }} />}{name(part)}</span>)}<span className={`pair-status ${kind} ${relation.coincident ? 'coincident-label' : ''}`} title={relation.coincident ? t('coincidentTip') : undefined}>{t(kind)}</span></button>
       <div className="pair-actions">
         {!inspect && <button className="icon-button pair-zoom" title={t('zoomPair', values)} onClick={() => onFrame(relation)}><ZoomIn size={16} /></button>}
         <button className="inspect-button" aria-label={t(inspect ? 'inspectPair' : 'isolatePair', values)} onClick={() => inspect ? onInspect(relation) : onIsolate(relation)}><BoxSelect size={15} /><span>{t(inspect ? 'inspect' : 'isolatePairAction')}</span></button>
@@ -57,8 +59,23 @@ export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspec
       <button id="checks-tab" role="tab" aria-selected={tab === 'checks'} aria-controls="checks-panel" tabIndex={tab === 'checks' ? 0 : -1} onClick={() => onTab('checks')}>{t('checks')}</button>
     </div>
     <section id="relations-panel" className="result-panel" role="tabpanel" aria-labelledby="relations-tab" hidden={tab !== 'relations'}>
-          <div className="result-section-heading"><h2><MousePointer2 size={13} />{t('pairs')}</h2><span className="count">{pairs.length}</span></div>
-      <div className="results-scroll">{pairs.map(row => pairRow(row, false))}{!pairs.length && <p className="empty-note">{relations.length ? t('noConnections') : t('noResults')}</p>}</div>
+      <div className="result-section-heading"><h2><Box size={14} />{t('objects')}</h2><span className="count">{parts.length}</span></div>
+      <div className="results-scroll">
+        {!parts.length && <p className="empty-note">{t('noObjects')}</p>}
+        {parts.map(part => {
+          const linked = pairs.filter(row => row.relation.part_ids.includes(part.id));
+          const open = expanded === part.id;
+          const pending = linked.some(row => row.relation.kind === 'UNCERTAIN');
+          return <section className={`connection-group ${open ? 'expanded' : ''}`} key={part.id}>
+            <button className="connection-group-toggle" aria-expanded={open} aria-controls={`connections-${part.id}`} aria-label={t('objectConnections', { name: name(part) })} onClick={() => setExpanded(open ? null : part.id)}>
+              {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}<Box size={15} /><strong title={name(part)}>{name(part)}</strong>
+              {pending && <TriangleAlert size={14} className="connection-warning" aria-label={t('uncertain')} />}
+              <span className="count" title={t('connections')}>{relations.length ? linked.length : '—'}</span>
+            </button>
+            <div id={`connections-${part.id}`} className="connection-children" hidden={!open}>{open && <>{linked.map(row => pairRow(row, false, part.id))}{!linked.length && <p className="empty-note compact">{relations.length ? t('noConnections') : t('noResults')}</p>}</>}</div>
+          </section>;
+        })}
+      </div>
     </section>
     <section id="checks-panel" className="result-panel" role="tabpanel" aria-labelledby="checks-tab" hidden={tab !== 'checks'}>
         <section className="checks-pairs-section" aria-label={t('intersections')}>
@@ -78,7 +95,7 @@ export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspec
             const key = !task ? 'notChecked' : task.stale ? 'stale' : task.result === 'UNCERTAIN' ? 'uncertain' : task.intersections === 1 ? 'intersectionCountOne' : task.intersections ? 'intersectionCount' : 'clear';
             return <div className={`review-row ${task?.done && !task.stale ? 'reviewed' : ''}`} key={part.id} data-part-id={part.id}>
               {task ? <input type="checkbox" aria-label={t('reviewPart', { name: name(part) })} checked={task.done && !task.stale} disabled={busy || task.stale} onChange={event => onReview(task, event.target.checked, task.note)} /> : <span className="pending-check" aria-hidden="true">—</span>}
-              <div className="review-object"><strong title={name(part)}>{name(part)}</strong><span className={`review-status ${key} ${task?.coincident_pairs ? 'has-coincident' : ''}`} title={task?.stale ? t('staleTip') : task?.result === 'UNCERTAIN' ? t('unclearCount', { count: task.uncertain_pairs }) : undefined}>{task && !task.stale && task.result !== 'UNCERTAIN' && task.coincident_pairs === task.intersections && task.coincident_pairs ? t('coincident') : t(key, { count: task?.intersections ?? 0 })}{task && !task.stale && task.coincident_pairs > 0 && task.coincident_pairs < task.intersections && ` · ${t('coincidentCount', { count: task.coincident_pairs })}`}</span></div>
+              <div className="review-object"><strong title={name(part)}>{name(part)}</strong><span className={`review-status ${key} ${task?.coincident_pairs ? 'has-coincident' : ''}`} title={task?.stale ? t('staleTip') : task?.result === 'UNCERTAIN' ? t('unclearCount', { count: task.uncertain_pairs }) : undefined}>{key === 'uncertain' || key === 'stale' ? <TriangleAlert size={12} /> : key === 'clear' ? <CircleCheck size={12} /> : task?.coincident_pairs ? <Copy size={12} /> : task?.intersections ? <ScanLine size={12} /> : null}{task && !task.stale && task.result !== 'UNCERTAIN' && task.coincident_pairs === task.intersections && task.coincident_pairs ? t('coincident') : t(key, { count: task?.intersections ?? 0 })}{task && !task.stale && task.coincident_pairs > 0 && task.coincident_pairs < task.intersections && ` · ${t('coincidentCount', { count: task.coincident_pairs })}`}</span></div>
               {task && <button className={`icon-button note-button ${task.note ? 'has-note' : ''}`} aria-pressed={noteId === task.id} title={t('noteFor', { name: name(part) })} onClick={() => setNoteId(noteId === task.id ? null : task.id)}><MessageSquare size={15} /></button>}
             </div>;
           })}

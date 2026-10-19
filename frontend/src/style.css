@@ -183,3 +183,21 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .viewport-legend .view-legend > span, .pair-color-legend > span { display: inline-flex; gap: 6px; align-items: center; color: #d6e0e7; max-width: 240px; width: auto; height: auto; border-radius: 0; background: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viewport-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; background: #b66d61; }
 .pair-files i { display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+.connection-group { border-bottom: 1px solid var(--line); }
+.connection-group-toggle { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 47px; padding: 10px 12px; text-align: left; color: #526774; }
+.connection-group-toggle:hover { background: #edf2f5; }
+.connection-group-toggle strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection-group-toggle > svg { flex-shrink: 0; }
+.connection-group.expanded > .connection-group-toggle { background: #eaf0f4; color: #354f60; }
+.connection-warning { color: #947335; }
+.connection-children { border-left: 2px solid #d8e3eb; margin: 0 8px 10px 19px; }
+.connection-children .result-pair { padding: 9px 6px 9px 10px; gap: 6px; }
+.connection-children .pair-files { font-size: 12px; }
+.pair-files .pair-status { font-size: 10px; color: #607480; margin-top: 3px; }
+.pair-files .pair-status.uncertain { color: #8b6b35; }
+.pair-files .pair-status.intersection { color: #9a6256; }
+.pair-files .pair-status.coincident { color: #8760a5; }
+.review-status { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.review-status svg { flex-shrink: 0; }
+.view-controls select { background: #50595f; color: #e4e9ec; border: 1px solid #69747c; border-radius: 3px; padding: 5px 6px; font-size: 11px; min-height: 28px; }
