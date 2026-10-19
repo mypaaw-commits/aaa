@@ -15,6 +15,8 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 
 **Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.6**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
+Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
+
 Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
 
 Polecenia ręczne w PowerShell, z katalogu głównego projektu:

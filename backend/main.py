@@ -244,4 +244,4 @@ if dist.exists():
 
     @app.get('/')
     def index():
-        return FileResponse(dist / 'index.html')
+        return FileResponse(dist / 'index.html', headers={'Cache-Control': 'no-store'})
