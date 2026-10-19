@@ -47,6 +47,40 @@ test('Explorer selection: Ctrl toggles, Shift ranges, keyboard and filtering', a
   expect(await selected()).toEqual(['A.stl']);
 });
 
+test('Object order changes by drag and keyboard without changing selection or checks', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  const rows = page.locator('.object-row');
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('.geometry-loading')).toHaveCount(0);
+  const a = rows.filter({ hasText: 'A.stl' });
+  await a.locator('.object-select').click();
+  await a.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Aktywuj', exact: true }).click();
+  await page.getByRole('button', { name: 'Sprawdź intersekcje', exact: true }).click();
+  const checked = page.getByRole('checkbox', { name: 'Intersekcje: B.stl — sprawdzone', exact: true });
+  await checked.check();
+  const requests: string[] = [];
+  page.on('request', request => { if (/\/stl$|\/intersection$|\/analysis$/.test(request.url())) requests.push(request.url()); });
+  await page.waitForTimeout(200);
+  requests.length = 0;
+  await a.locator('.object-select').dragTo(rows.filter({ hasText: 'C.stl' }), { targetPosition: { x: 100, y: 33 } });
+  await expect(rows.locator('.object-select > span:nth-child(2)')).toHaveText(['B.stl', 'C.stl', 'A.stl']);
+  await expect(a).toHaveAttribute('aria-selected', 'true');
+  await expect(a).toHaveAttribute('data-selection', 'active');
+  await expect(checked).toBeChecked();
+  await expect(page.locator('.check-task .task-warning')).toHaveCount(0);
+  expect(requests).toEqual([]);
+  await a.locator('.object-select').focus();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(rows.locator('.object-select > span:nth-child(2)')).toHaveText(['B.stl', 'A.stl', 'C.stl']);
+  await expect(a.locator('.object-select')).toBeFocused();
+  // Shift ranges now follow the new manual order.
+  await rows.filter({ hasText: 'B.stl' }).locator('.object-select').click({ modifiers: ['Shift'] });
+  await expect(rows.filter({ hasText: 'B.stl' })).toHaveAttribute('aria-selected', 'true');
+  await expect(rows.filter({ hasText: 'C.stl' })).toHaveAttribute('aria-selected', 'false');
+});
+
 test('Marquee scrolls a long list and stops when the mouse is released', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Wczytaj STL', exact: true })).toBeEnabled();

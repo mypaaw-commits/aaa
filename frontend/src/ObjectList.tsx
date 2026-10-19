@@ -9,13 +9,16 @@ type Props = {
   parts: Part[]; selected: string[]; activeId: string | null; isolated: string[] | null;
   onChange: (ids: string[]) => void; onVisibility: (part: Part) => void;
   onMenu: (menu: ObjectMenuState) => void; nameSuffix: (part: Part) => string;
+  onReorder: (id: string, target: string, before: boolean) => void;
 };
 type Drag = { x: number; y: number; startX: number; startY: number; clientX: number; clientY: number; base: string[]; ctrl: boolean; shift: boolean; moved: boolean };
 
-export function ObjectList({ parts, selected, activeId, isolated, onChange, onVisibility, onMenu, nameSuffix }: Props) {
+export function ObjectList({ parts, selected, activeId, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
   const list = useRef<HTMLDivElement>(null);
   const anchor = useRef<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ id: string; before: boolean } | null>(null);
+  const moving = useRef<string | null>(null);
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const drag = useRef<Drag | null>(null);
   const frame = useRef(0);
@@ -56,6 +59,12 @@ export function ObjectList({ parts, selected, activeId, isolated, onChange, onVi
     }
     const found = parts.findIndex(part => part.id === (focused ?? selected[0]));
     const current = Math.max(0, found);
+    if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && parts[current]) {
+      event.preventDefault();
+      const target = parts[current + (event.key === 'ArrowUp' ? -1 : 1)];
+      if (target) onReorder(parts[current].id, target.id, event.key === 'ArrowUp');
+      return;
+    }
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? parts.length - 1 : event.key === 'ArrowDown' ? Math.min(found + 1, parts.length - 1) : event.key === 'ArrowUp' ? Math.max(current - 1, 0) : -1;
     if (next >= 0 && parts[next]) {
       event.preventDefault();
@@ -118,11 +127,29 @@ export function ObjectList({ parts, selected, activeId, isolated, onChange, onVi
     {parts.map(part => {
       const visible = part.visible && (!isolated || isolated.includes(part.id));
       return <div key={part.id} role="option" aria-selected={selected.includes(part.id)} aria-label={part.name} data-id={part.id}
-        className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${activeId === part.id ? 'active-part' : ''} ${!visible ? 'muted' : ''}`}
+        className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${activeId === part.id ? 'active-part' : ''} ${!visible ? 'muted' : ''} ${drop?.id === part.id ? drop.before ? 'drop-before' : 'drop-after' : ''}`}
+        onDragOver={event => {
+          if (!moving.current || moving.current === part.id) return;
+          event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'move';
+          const bounds = event.currentTarget.getBoundingClientRect();
+          setDrop({ id: part.id, before: event.clientY < bounds.top + bounds.height / 2 });
+          const area = list.current!.getBoundingClientRect();
+          if (event.clientY < area.top + 30) list.current!.scrollTop -= 12;
+          if (event.clientY > area.bottom - 30) list.current!.scrollTop += 12;
+        }}
+        onDrop={event => {
+          if (!moving.current) return;
+          event.preventDefault(); event.stopPropagation();
+          const bounds = event.currentTarget.getBoundingClientRect();
+          onReorder(moving.current, part.id, event.clientY < bounds.top + bounds.height / 2);
+          moving.current = null; setDrop(null);
+        }}
         data-selection={activeId === part.id ? 'active' : selected.includes(part.id) ? 'selected' : 'idle'}
         onClick={event => { if (event.target === event.currentTarget) { choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey); focusRow(part.id); } }}
         onContextMenu={event => { event.preventDefault(); setFocused(part.id); onMenu({ id: part.id, x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') }); }}>
-        <button className="object-select" tabIndex={-1} aria-pressed={selected.includes(part.id)} aria-current={activeId === part.id ? 'true' : undefined}
+        <button className="object-select" tabIndex={-1} draggable title="Przeciągnij, aby zmienić kolejność; Alt + strzałki przesuwają klawiaturą" aria-pressed={selected.includes(part.id)} aria-current={activeId === part.id ? 'true' : undefined}
+          onDragStart={event => { moving.current = part.id; event.dataTransfer.setData('application/x-modelcheck-part', part.id); event.dataTransfer.effectAllowed = 'move'; }}
+          onDragEnd={() => { moving.current = null; setDrop(null); }}
           onClick={event => choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey)} onFocus={() => setFocused(part.id)}>
           <span className="part-swatch" style={{ background: partColor(part.id, selected, activeId) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
           {!part.solid && <span className="warning-text" title="Siatka wymaga weryfikacji">!</span>}

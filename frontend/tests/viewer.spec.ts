@@ -1,0 +1,49 @@
+import { expect, test } from '@playwright/test';
+
+test('Camera centers the active object and keeps it as the orbit pivot', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await expect(page.locator('.object-row')).toHaveCount(3);
+  await expect(page.locator('.geometry-loading')).toHaveCount(0);
+  const a = page.locator('.object-row').filter({ hasText: 'A.stl' });
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+  const bounds = (await canvas.boundingBox())!;
+  // With no active object, selecting through the list must not move the view.
+  await page.waitForTimeout(400);
+  await a.locator('.object-select').click();
+  await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
+  await expect(page.locator('.object-row').filter({ hasText: 'B.stl' })).toHaveAttribute('aria-selected', 'true');
+  const before = await canvas.screenshot();
+  await a.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Aktywuj', exact: true }).click();
+  await page.waitForTimeout(300);
+  expect(Buffer.compare(before, await canvas.screenshot())).not.toBe(0);
+  const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
+  await page.getByRole('button', { name: 'Odznacz wszystkie', exact: true }).click();
+  await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
+  await expect(a).toHaveAttribute('aria-selected', 'true');
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(x + 95, y + 35, { steps: 10 });
+  await page.mouse.up({ button: 'middle' });
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: 'Odznacz wszystkie', exact: true }).click();
+  await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
+  await expect(a).toHaveAttribute('aria-selected', 'true');
+  // Panning remains available; the next orbit restores the active-object pivot.
+  await page.mouse.move(x, y);
+  await page.keyboard.down('Shift');
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(x + 80, y + 30, { steps: 8 });
+  await page.mouse.up({ button: 'middle' });
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(300);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(x + 110, y + 45, { steps: 8 });
+  await page.mouse.up({ button: 'middle' });
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: 'Odznacz wszystkie', exact: true }).click();
+  await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
+  await expect(a).toHaveAttribute('aria-selected', 'true');
+});

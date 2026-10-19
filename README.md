@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.9
+# ModelCheck 3D — prototyp 0.10
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.9 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.10 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.9**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.10**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
 
@@ -36,7 +36,7 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Zachowujemy ich współrzędne i skalę; 1 jednostka STL = 1 mm.
 2. **Sprawdź powiązania** — program informuje, które części bezpośrednio się łączą. Zakładka **Powiązania** zawiera każdą parę raz. Lista jest informacyjna i nie zmienia zaznaczenia, kolorów, widoczności ani kamery. Osobny przycisk **Pokaż parę** dopasowuje wyłącznie kamerę; obie części muszą być widoczne, inaczej przycisk jest niedostępny. Powiązania nie mają ocen, notatek ani odhaczeń.
 3. **Sprawdź intersekcje** — uruchamia konkretną kontrolę. Otwiera osobną zakładkę **Kontrole**, w której zawsze są wszystkie wczytane elementy. Dopiero po uruchomieniu kontroli przy każdym elemencie pojawia się zadanie **Intersekcje sprawdzone**. Wynik mówi o wykrytych intersekcjach, ich braku lub niepewności. Żadne zadanie nie odhacza się automatycznie.
-4. Po ręcznej kontroli elementu odhacz jego zadanie. Przeglądanie kontroli, odhaczanie i notatki nie zmieniają widoku 3D ani zaznaczenia. Zakładki można przełączać myszą lub strzałkami klawiatury. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
+4. Przy każdej wykrytej intersekcji w zakładce **Kontrole** jest przycisk **Zbliż parę** z nazwami obu części. Pokazuje tylko tę parę, włącza czerwony podgląd przecięcia i dopasowuje kamerę. Może przywrócić widoczność ukrytych części należących do pary; nie zmienia zaznaczenia, aktywacji ani odhaczeń. **Wróć do całego modelu** przywraca całość. Po ręcznej kontroli elementu odhacz jego zadanie. Przeglądanie kontroli, odhaczanie i notatki nie zmieniają widoku 3D ani zaznaczenia. Zakładki można przełączać myszą lub strzałkami klawiatury. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
 5. **Pokaż intersekcje** zmienia tylko widoczność wyników już uruchomionej kontroli. Czerwona, matowa geometria pokazuje wspólną objętość. Otaczające części są przezroczyste, by odsłonić wnętrze. Samo przełączanie widoczności nie tworzy dodatkowych zadań.
 6. **Pokaż cały model** przywraca wszystkie części i dopasowuje kamerę do całości.
 
@@ -45,6 +45,8 @@ Oba polecenia analizy obejmują zawsze cały model, również ukryte części. Z
 Ponowne uruchomienie kontroli na niezmienionych danych zachowuje odhaczenia i notatki. Dodanie lub usunięcie części oznacza wcześniejsze zadania jako **nieaktualne**, usuwa ich odhaczenia i blokuje ponowne odhaczanie do czasu uruchomienia kontroli. Notatki istniejących elementów pozostają. Nowy element otrzyma zadanie dopiero po uruchomieniu kontroli.
 
 W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, B–C mają intersekcję, A i C są rozdzielone.
+
+![Zbliżenie pary z intersekcją i przyciski w zakładce Kontrole](docs/intersection-closeup.png)
 
 ![Osobna zakładka powiązań: jedna pozycja na parę i jawny przycisk dopasowania kamery](docs/relations.png)
 
@@ -64,7 +66,7 @@ Na lewej liście:
 - Przeciągnięcie od pustego obszaru listy (również jej wąskiego lewego marginesu) tworzy ramkę zaznaczenia. Ctrl przełącza elementy objęte ramką, Shift je dodaje. Przy górnej lub dolnej krawędzi lista przewija się automatycznie. Escape podczas przeciągania przywraca poprzedni wybór.
 - Klik w pustym miejscu usuwa zaznaczenie; Ctrl+A zaznacza wszystkie pozycje aktualnie widoczne przez filtr wyszukiwania.
 - Strzałki, Home i End przemieszczają wybór; Shift rozszerza zakres, Ctrl przenosi tylko fokus, spacja przełącza wskazany element. Escape usuwa zaznaczenie.
-- Lista jest sortowana alfabetycznie z naturalną kolejnością numerów. Zakresy obejmują wyłącznie pozycje pasujące do wyszukiwania.
+- Lista zachowuje kolejność wczytania i pozwala ją zmieniać: przeciągnij nazwę nad lub pod inną pozycję. Linia wskazuje miejsce wstawienia. Alt + strzałka w górę / w dół przesuwa wskazany element klawiaturą. Zakresy zaznaczania stosują aktualną kolejność i obejmują tylko pozycje pasujące do wyszukiwania. Zmiana kolejności nie przesuwa geometrii, nie zmienia aktywnego obiektu, zaznaczenia ani wyników i odhaczeń kontroli.
 - Ikona oka zmienia tylko widoczność. PPM otwiera menu.
 
 W widoku 3D klik zaznacza jedną część, a Shift/Ctrl + klik dodaje lub odejmuje wskazaną część. Aktywacja pozostaje niezależna od zaznaczenia i odbywa się poleceniem „Aktywuj”; usunięcie aktywnego obiektu nie aktywuje następnego.
@@ -81,11 +83,13 @@ Kolory są nieco jaśniejsze niż w wersji 0.6. Materiały mają maksymalną chr
 
 ![Jaśniejsze, matowe kolory elementów i uporządkowane panele](docs/selection.png)
 
-## Widok 3D i podłoga
+## Kamera, widok 3D i podłoga
+
+Środkiem obrotu kamery jest środek aktywnego, widocznego elementu. Aktywacja ustawia go w centrum widoku, zachowując kierunek patrzenia i odległość. Po przesunięciu widoku następny obrót ponownie odnosi się do aktywnego elementu. Bez aktywnego widocznego elementu kamera obraca się wokół środka bieżącego widoku. Podczas izolacji pary aktywny element spoza niej nie wpływa na kamerę; kamera centruje widoczną parę.
 
 Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
 
-Interfejs 0.9 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
+Interfejs 0.10 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
 
 ## Sterowanie
 
@@ -98,6 +102,7 @@ Interfejs 0.9 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniam
 | Ctrl + klik na liście | Dodaj / odejmij element |
 | Shift + klik na liście | Zaznacz zakres |
 | Przeciągnięcie od pustego obszaru listy | Ramka zaznaczenia |
+| Przeciągnięcie nazwy / Alt + strzałki | Zmiana kolejności na liście |
 | Ctrl+A / Escape na liście | Zaznacz pozycje z filtra / odznacz |
 | Strzałki / Home / End na liście | Nawigacja; Shift rozszerza zakres |
 | Shift / Ctrl + klik w 3D | Dodaj / odejmij część |

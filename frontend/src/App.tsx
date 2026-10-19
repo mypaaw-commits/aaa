@@ -153,6 +153,21 @@ export default function App() {
     setActivePair(relation.id);
     viewer.current?.fit(relation.part_ids);
   }
+  function focusIntersection(relation: Relation) {
+    setActivePair(relation.id); setIsolated(relation.part_ids); setIntersections(true);
+    setParts(previous => previous.map(part => relation.part_ids.includes(part.id) ? { ...part, visible: true } : part));
+    requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
+  }
+  function reorderPart(id: string, target: string, before: boolean) {
+    if (id === target) return;
+    setParts(previous => {
+      const item = previous.find(part => part.id === id);
+      if (!item || !previous.some(part => part.id === target)) return previous;
+      const next = previous.filter(part => part.id !== id);
+      next.splice(next.findIndex(part => part.id === target) + (before ? 0 : 1), 0, item);
+      return next;
+    });
+  }
   function showAll() {
     setIsolated(null);
     setParts(previous => previous.map(part => ({ ...part, visible: true })));
@@ -201,7 +216,7 @@ export default function App() {
     setParts(previous => previous.map(item => item.id === part.id ? { ...item, visible: !visible } : item));
     if (!visible && isolated && !isolated.includes(part.id)) setIsolated([...isolated, part.id]);
   }
-  const listedParts = parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }));
+  const listedParts = parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase()));
   const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
   const relatedPairs = relations.filter(row => row.kind !== 'DISCONNECTED').map(row => ({
     relation: row,
@@ -218,7 +233,7 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.9</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.10</span></div>
       <div className="header-actions">
         <button className="button secondary help-button" onClick={() => setHelp(true)}><CircleHelp size={16} />Pomoc</button>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />Wczytaj STL</button>
@@ -229,9 +244,9 @@ export default function App() {
       <aside className="objects panel" aria-label="Lista elementów">
         <div className="panel-heading"><h2><Box size={15} /> Obiekty</h2><span className="count">{parts.length}</span></div>
         <label className="panel-search"><Search size={17} /><input aria-label="Szukaj elementu" placeholder="Szukaj elementu…" value={search} onChange={event => setSearch(event.target.value)} /></label>
-        <p className="selection-hint">Ctrl: wybierz kilka · Shift: zakres<br />Przeciągnij po pustym obszarze, aby zaznaczyć ramką.</p>
+        <p className="selection-hint">Ctrl: wybierz kilka · Shift: zakres<br />Pusta przestrzeń: ramka · Nazwa: zmiana kolejności</p>
         <ObjectList parts={listedParts}
-          selected={selected} activeId={activePartId} isolated={isolated} nameSuffix={duplicateName} onMenu={setObjectMenu} onVisibility={toggleVisibility}
+          selected={selected} activeId={activePartId} isolated={isolated} nameSuffix={duplicateName} onMenu={setObjectMenu} onVisibility={toggleVisibility} onReorder={reorderPart}
           onChange={ids => {
             setSelection(previous => ({ ...previous, ids })); setActivePair(null);
             if (isolated && ids.some(id => !isolated.includes(id))) setIsolated(null);
@@ -306,6 +321,10 @@ export default function App() {
                 {!tasks.some(task => task.part_id === part.id) && <p className="no-checks">Nie uruchomiono kontroli.</p>}
                 {tasks.filter(task => task.part_id === part.id).map(task => <div className="check-task" key={task.id}>
                   <p className={task.stale || task.result === 'UNCERTAIN' ? 'task-warning' : ''}>{taskResult(task)}</p>
+                  {!task.stale && relations.filter(row => row.kind === 'INTERSECTION' && row.part_ids.includes(part.id)).map(row => {
+                    const pair = row.part_ids.map(id => parts.find(item => item.id === id)!).sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true }));
+                    return <div className="intersection-pair" key={row.id}><span>{pair.map(item => item.name + duplicateName(item)).join(' ↔ ')}</span><button className="button" aria-label={`Zbliż parę ${pair.map(item => item.name + duplicateName(item)).join(' i ')} — kontrola ${part.name}`} onClick={() => focusIntersection(row)}><Focus size={14} />Zbliż parę</button></div>;
+                  })}
                   <div className="task-line"><label><input type="checkbox" aria-label={`Intersekcje: ${part.name} — sprawdzone`} checked={task.done} disabled={busy || task.stale} onChange={event => void reviewTask(task, event.target.checked, task.note)} />Intersekcje sprawdzone</label><button className="text-button" aria-label={`Szczegóły kontroli ${part.name}`} onClick={() => setActiveTaskId(task.id)}>Szczegóły</button></div>
                 </div>)}
               </div>
@@ -320,6 +339,6 @@ export default function App() {
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onActivate={() => { setSelection(previous => ({ ...previous, activeId: objectMenu.id })); setObjectMenu(null); }} onDelete={() => void removePart(objectMenu.id)} />}
     {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{error}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => setError('')}><X size={20} /></button></div>}
     {dragging && <div className="drop-overlay"><h2>Upuść pliki STL</h2><p>Każdy plik to osobny element modelu.</p></div>}
-    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Zakładka „Powiązania” pokaże listę par bez zaznaczania części w 3D.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Przycisk „Pokaż parę” dopasowuje tylko kamerę, bez zaznaczania i ukrywania części. Obie części muszą być widoczne. W osobnej zakładce „Kontrole” odhaczasz uruchomione kontrole; szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Ctrl + klik na liście</dt><dd>Dodaj / odejmij element</dd><dt>Shift + klik na liście</dt><dd>Zaznacz zakres</dd><dt>Przeciągnięcie na pustym obszarze listy</dt><dd>Ramka zaznaczenia</dd><dt>Strzałki / Home / End</dt><dd>Nawigacja po liście</dd><dt>Ctrl+A / Escape na liście</dt><dd>Zaznacz widoczne na liście / odznacz</dd><dt>Shift + klik w 3D</dt><dd>Dodaj / odejmij element</dd></dl><p>Przycisk „Podłoga” nad widokiem 3D ukrywa siatkę i osie. Nie zmienia położenia ani wyników analizy modelu.</p><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>Lista działa jak Eksplorator Windows: Ctrl przełącza zaznaczenie, Shift wybiera zakres, przeciągnięcie po pustym obszarze zaznacza ramką. Kliknięcie pustego miejsca usuwa zaznaczenie. LPM w 3D zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
+    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Zakładka „Powiązania” pokaże listę par bez zaznaczania części w 3D.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Przycisk „Pokaż parę” dopasowuje tylko kamerę, bez zaznaczania i ukrywania części. Obie części muszą być widoczne. W osobnej zakładce „Kontrole” odhaczasz uruchomione kontrole; szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Ctrl + klik na liście</dt><dd>Dodaj / odejmij element</dd><dt>Shift + klik na liście</dt><dd>Zaznacz zakres</dd><dt>Przeciągnięcie na pustym obszarze listy</dt><dd>Ramka zaznaczenia</dd><dt>Strzałki / Home / End</dt><dd>Nawigacja po liście</dd><dt>Ctrl+A / Escape na liście</dt><dd>Zaznacz widoczne na liście / odznacz</dd><dt>Shift + klik w 3D</dt><dd>Dodaj / odejmij element</dd></dl><p>Przeciągnij nazwę na lewej liście, aby zmienić kolejność. Alt + strzałka w górę lub w dół przesuwa wskazaną pozycję klawiaturą. Przy intersekcji przycisk „Zbliż parę” izoluje dwie części i dopasowuje kamerę. Aktywny widoczny obiekt jest środkiem obrotu; bez niego obrót odbywa się wokół środka aktualnego widoku.</p><p>Przycisk „Podłoga” nad widokiem 3D ukrywa siatkę i osie. Nie zmienia położenia ani wyników analizy modelu.</p><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>Lista działa jak Eksplorator Windows: Ctrl przełącza zaznaczenie, Shift wybiera zakres, przeciągnięcie po pustym obszarze zaznacza ramką. Kliknięcie pustego miejsca usuwa zaznaczenie. LPM w 3D zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
   </div>;
 }

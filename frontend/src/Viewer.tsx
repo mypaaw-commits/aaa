@@ -7,7 +7,7 @@ import { partColor, partColors } from './types';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
 type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; activePartId: string | null; isolated: string[] | null; intersections: boolean; floor: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; invalidate: () => void };
+type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; aimActive: () => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
   object.traverse(child => {
@@ -66,22 +66,34 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const axes = new THREE.AxesHelper(12); scene.add(axes);
     const meshes: Engine['meshes'] = new Map();
     const overlays = new THREE.Group(); scene.add(overlays);
+    const activeCenter = (ids?: string[]) => {
+      const active = latest.current.activePartId;
+      const mesh = active ? meshes.get(active) : null;
+      return mesh && mesh.visible && (!ids || ids.includes(active!)) ? new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()) : null;
+    };
+    const aimActive = () => {
+      const center = activeCenter(); if (!center) return;
+      const offset = camera.position.clone().sub(controls.target);
+      controls.target.copy(center); camera.position.copy(center).add(offset);
+      controls.update(); invalidate();
+    };
     const fit = (ids?: string[]) => {
       const box = new THREE.Box3();
       meshes.forEach((mesh, id) => { if (ids ? ids.includes(id) : mesh.visible) box.expandByObject(mesh); });
       if (box.isEmpty()) return;
       const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
-      const max = Math.max(size.x, size.y, size.z, .01);
+      const target = activeCenter(ids) ?? center;
+      const max = Math.max(size.x, size.y, size.z, .01) + center.distanceTo(target) * 2;
       const distance = max / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov/2))) * 1.5 / Math.min(camera.aspect, 1);
       const direction = camera.position.clone().sub(controls.target).normalize();
-      controls.target.copy(center); camera.position.copy(center).addScaledVector(direction, distance);
+      controls.target.copy(target); camera.position.copy(target).addScaledVector(direction, distance);
       camera.near = Math.max(max / 10000, .00001); camera.far = Math.max(distance * 100, 1000);
       camera.updateProjectionMatrix(); controls.update(); invalidate();
       grid.position.set(center.x, center.y, box.min.z - max * .001);
       grid.scale.setScalar(Math.max(max * 2 / 80, .001));
       axes.position.copy(grid.position); axes.scale.setScalar(max / 60);
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, invalidate };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, aimActive, invalidate };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); invalidate();
@@ -95,6 +107,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     let start: [number, number] = [0, 0];
     const down = (event: PointerEvent) => {
       start = [event.clientX, event.clientY];
+      if (event.button === 1 && !event.shiftKey && !event.ctrlKey && !event.metaKey) aimActive();
       // OrbitControls maps Shift + ROTATE to pan automatically.
     };
     const up = (event: PointerEvent) => {
@@ -118,6 +131,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       dispose(scene); renderer.dispose(); container.removeChild(renderer.domElement); engine.current = null;
     };
   }, []);
+
+  useEffect(() => { engine.current?.aimActive(); }, [props.activePartId]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -153,7 +168,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     };
     void load();
     return () => { cancelled = true; abort.abort(); };
-  }, [props.parts.map(part => part.id).join(','), props.session]);
+  }, [props.parts.map(part => part.id).sort().join(','), props.session]);
 
   function applyMaterials() {
     const e = engine.current; if (!e) return;
@@ -195,7 +210,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     };
     void load();
     return () => { cancelled = true; abort.abort(); clear(); };
-  }, [props.relations, props.parts, props.isolated, props.intersections, props.session]);
+  }, [props.relations, props.parts.map(part => `${part.id}:${part.visible}`).sort().join(','), props.isolated, props.intersections, props.session]);
 
   return <div className="canvas-host" ref={host} aria-label="Interaktywny widok modelu 3D" />;
 });
