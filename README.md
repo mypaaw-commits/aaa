@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.2
+# ModelCheck 3D — prototyp 0.3
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma większy tekst, jasne panele i jeden przełącznik podświetlenia. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.3 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zamknij poprzedni serwer, rozpakuj nową wersję i ponownie uruchom `setup.cmd`, a potem `start.cmd`. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.3**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
 
@@ -36,7 +36,8 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 3. **Powiązania i checklista** — przy każdym elemencie znajdziesz listę „Powiązany z”. Powiązanie oznacza bezpośrednie dotykanie się części lub ich przenikanie. Element bez powiązań też pozostaje na checkliście. Samo bliskie położenie oddzielonych części nie tworzy powiązania.
 4. **Pokaż intersekcje** — włącz, gdy chcesz obejrzeć czerwone regiony przenikania. Domyślnie są wyłączone. Podświetlamy wspólną objętość, a nie całe części. Otaczające elementy stają się przezroczyste, aby odsłonić wewnętrzne obszary. W zakresie „Zaznaczone” pokazywane są tylko wyniki dla wybranych części.
 5. **Wybierz parę na checkliście** — pozostałe części zostaną ukryte, a kamera dopasowana do tej pary. Wybierz ręcznie **Do sprawdzenia / OK / Wymaga poprawki** i dodaj notatkę. Zmiana notatki jest stosowana po wyjściu z pola. Status i notatka są wspólne dla obu elementów; wynik analizy nie ustawia automatycznie „OK”.
-6. **Pokaż cały model** — przywróć wszystkie części. Wybór elementu na liście lub w 3D odsłania jego pozycję na checkliście. Nazwy powiązanych części są sortowane alfabetycznie z uwzględnieniem numerów.
+6. **Usuń element** — kliknij jego wiersz na liście obiektów prawym przyciskiem i wybierz **Usuń**. Przy nazwie pozostaje tylko oczko widoczności. Menu można też otworzyć klawiszami Shift+F10; Escape lub kliknięcie poza menu zamyka je bez usuwania. Usunięcie dotyczy wskazanego elementu, także gdy zaznaczonych jest kilka części. W czasie przetwarzania polecenie jest niedostępne.
+7. **Pokaż cały model** — przywróć wszystkie części. Wybór elementu na liście lub w 3D odsłania jego pozycję na checkliście. Nazwy powiązanych części są sortowane alfabetycznie z uwzględnieniem numerów.
 
 Analiza podzbioru aktualizuje tylko jego pary. Pozostałe wyniki i ręczne oceny pozostają; niesprawdzone pary są wyraźnie oznaczone jako nieprzeanalizowane. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
 
@@ -52,6 +53,7 @@ W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, a B i
 | Klik w model lub nazwę | Wybór elementu |
 | Shift / Ctrl + klik | Wiele elementów |
 | Ikona oka | Ukrywanie i pokazywanie części |
+| Prawy przycisk na elemencie → Usuń | Usunięcie elementu z bieżącego modelu |
 | Izoluj wybrane | Widok samych zaznaczonych części |
 | Dopasuj widok / dwuklik | Dopasowanie kamery |
 

@@ -4,7 +4,7 @@ test('model ABC: render, analyze, inspect, review and scope', async ({ page }, t
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Wczytaj części modelu' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak modelu' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('empty.png') });
   await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
   await expect(page.locator('.object-row')).toHaveCount(3);
@@ -108,8 +108,30 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await page.getByLabel('Zakres sprawdzania', { exact: true }).selectOption('selected');
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
   await expect(page.getByRole('status')).toContainText('Sprawdzono par: 1');
-  await page.locator('.object-row').filter({ hasText: 'far.stl' }).hover();
-  await page.getByTitle('Usuń far.stl').click();
+  // The object list has a name and a visibility button only, with no inline delete action.
+  await expect(page.locator('.object-row button')).toHaveCount(6);
+  await expect(page.locator('.object-row').getByTitle(/^Usuń/)).toHaveCount(0);
+  const far = page.locator('.object-row').filter({ hasText: 'far.stl' });
+  await far.click({ button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Opcje elementu far.stl' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem')).toHaveCount(1);
+  await expect(page.locator('.object-row')).toHaveCount(3);
+  // Escape dismisses without deleting and returns focus to the same object.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(far.locator('.object-select')).toBeFocused();
+  // A click outside also dismisses, without acting on another object.
+  await far.click({ button: 'right' });
+  await page.locator('.objects .panel-heading').click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('.object-row')).toHaveCount(3);
+  // Keyboard context menu offers the same single delete command.
+  await far.locator('.object-select').focus();
+  await page.keyboard.press('Shift+F10');
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Usuń', exact: true }).click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.check-part')).toHaveCount(2);
 });

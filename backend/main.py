@@ -12,9 +12,9 @@ from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
-from backend.geometry import prepare, analyze_pair, CONTACT_EPS
+from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.2.0')
+app = FastAPI(title='ModelCheck 3D', version='0.3.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -53,7 +53,7 @@ def add_part(session, mesh, name, size):
 
 @app.get('/api/health')
 def health():
-    return {'status': 'ok', 'units': 'mm', 'contact_epsilon': CONTACT_EPS}
+    return {'status': 'ok', 'version': app.version, 'units': 'mm', 'connection_epsilon': CONNECTION_EPS}
 
 
 @app.post('/api/sessions')

@@ -37,7 +37,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   useEffect(() => {
     const container = host.current!;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#171c24');
+    scene.background = new THREE.Color('#484848');
     const camera = new THREE.PerspectiveCamera(40, 1, .01, 100000);
     camera.up.set(0, 0, 1); camera.position.set(35, -55, 35);
     let renderer: THREE.WebGLRenderer;
@@ -58,7 +58,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     scene.add(new THREE.HemisphereLight(0xddeaff, 0x494139, 2.5));
     const key = new THREE.DirectionalLight(0xffffff, 3); key.position.set(20, -30, 60); scene.add(key);
     const fill = new THREE.DirectionalLight(0xc8d7ff, 1); fill.position.set(-30, 10, 10); scene.add(fill);
-    const grid = new THREE.GridHelper(80, 40, 0x414b59, 0x29323e);
+    const grid = new THREE.GridHelper(80, 40, 0x727272, 0x565656);
     grid.rotateX(Math.PI / 2); scene.add(grid);
     const axes = new THREE.AxesHelper(12); scene.add(axes);
     const meshes: Engine['meshes'] = new Map();

@@ -5,7 +5,7 @@ import trimesh
 import fcl
 import manifold3d
 
-CONTACT_EPS = 1e-5  # numerical tolerance, NOT a manufacturing tolerance
+CONNECTION_EPS = 1e-5  # numerical tolerance, NOT a manufacturing tolerance
 
 
 @dataclass
@@ -45,7 +45,7 @@ def analyze_pair(a: Shape, b: Shape):
     """Returns metadata and optional exact Boolean intersection mesh."""
     base = {'kind': 'UNCERTAIN', 'volume': None, 'message': ''}
     lower = bounds_distance(a, b)
-    if lower > CONTACT_EPS:
+    if lower > CONNECTION_EPS:
         return {**base, 'kind': 'DISCONNECTED', 'message': 'Elementy nie są ze sobą powiązane.'}, None
     if not a.solid or not b.solid:
         return {**base, 'message': 'Siatka otwarta, niespójna lub z odwróconą orientacją. Nie można pewnie ocenić bryły.'}, None
@@ -70,9 +70,9 @@ def analyze_pair(a: Shape, b: Shape):
         # Separated parts are never proposed as related merely because they are near.
         result = fcl.DistanceResult()
         distance = float(fcl.distance(a.collision, b.collision, fcl.DistanceRequest(), result))
-        if not np.isfinite(distance) or distance < -CONTACT_EPS:
+        if not np.isfinite(distance) or distance < -CONNECTION_EPS:
             return {**base, 'message': 'Wyniki analizy są sprzeczne. Sprawdź tę parę ręcznie.'}, None
-        connected = distance <= CONTACT_EPS
+        connected = distance <= CONNECTION_EPS
         return {**base, 'kind': 'CONNECTED' if connected else 'DISCONNECTED', 'volume': 0.0,
                 'message': 'Elementy są ze sobą powiązane. Nie wykryto intersekcji.' if connected else 'Elementy nie są ze sobą powiązane.'}, None
     except Exception as exc:
