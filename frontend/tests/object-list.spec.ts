@@ -34,17 +34,18 @@ test('Explorer selection: Ctrl toggles, Shift ranges, keyboard and filtering', a
   await page.keyboard.press('Control+a');
   expect(await selected()).toEqual(['A.stl', 'B.stl', 'C.stl']);
 
-  await page.getByLabel('Szukaj elementu').fill('C.stl');
+  await page.getByRole('button', { name: 'Search objects', exact: true }).click();
+  await page.getByLabel('Search objects').fill('C.stl');
   await page.getByRole('listbox').focus();
   await page.keyboard.press('Control+a');
-  await page.getByLabel('Szukaj elementu').fill('');
+  await page.getByLabel('Search objects').fill('');
   expect(await selected()).toEqual(['C.stl']);
   // A hidden range anchor must never select invisible, filtered-out items.
-  await page.getByLabel('Szukaj elementu').fill('A.stl');
-  await page.getByRole('button', { name: 'Zaznacz wszystkie', exact: true }).click();
-  await expect(page.locator('.selection-summary')).toContainText('Zaznaczone: 1');
+  await page.getByLabel('Search objects').fill('A.stl');
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await expect(page.locator('.selection-count')).toContainText('1 selected');
   await names.first().click({ modifiers: ['Shift'] });
-  await page.getByLabel('Szukaj elementu').fill('');
+  await page.getByLabel('Search objects').fill('');
   expect(await selected()).toEqual(['A.stl']);
 });
 
@@ -56,10 +57,8 @@ test('Object order changes by drag and keyboard without changing selection or ch
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   const a = rows.filter({ hasText: 'A.stl' });
   await a.locator('.object-select').click();
-  await a.click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Aktywuj', exact: true }).click();
-  await page.getByRole('button', { name: 'Sprawdź intersekcje', exact: true }).click();
-  const checked = page.getByRole('checkbox', { name: 'Intersekcje: B.stl — sprawdzone', exact: true });
+  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  const checked = page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true });
   await checked.check();
   const requests: string[] = [];
   page.on('request', request => { if (/\/stl$|\/intersection$|\/analysis$/.test(request.url())) requests.push(request.url()); });
@@ -68,9 +67,9 @@ test('Object order changes by drag and keyboard without changing selection or ch
   await a.locator('.object-select').dragTo(rows.filter({ hasText: 'C.stl' }), { targetPosition: { x: 100, y: 33 } });
   await expect(rows.locator('.object-select > span:nth-child(2)')).toHaveText(['B.stl', 'C.stl', 'A.stl']);
   await expect(a).toHaveAttribute('aria-selected', 'true');
-  await expect(a).toHaveAttribute('data-selection', 'active');
+  await expect(a).toHaveAttribute('data-selection', 'selected');
   await expect(checked).toBeChecked();
-  await expect(page.locator('.check-task .task-warning')).toHaveCount(0);
+  await expect(page.locator('.review-status.stale')).toHaveCount(0);
   expect(requests).toEqual([]);
   await a.locator('.object-select').focus();
   await page.keyboard.press('Alt+ArrowUp');
@@ -84,7 +83,7 @@ test('Object order changes by drag and keyboard without changing selection or ch
 
 test('Marquee scrolls a long list and stops when the mouse is released', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Wczytaj STL', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   const triangles = [[[0,0,0],[0,1,0],[1,0,0]], [[0,0,0],[1,0,0],[0,0,1]], [[0,0,0],[0,0,1],[0,1,0]], [[1,0,0],[0,1,0],[0,0,1]]];
   const buffer = Buffer.from(`solid tetra\n${triangles.map(face => `facet normal 0 0 0\nouter loop\n${face.map(v => `vertex ${v.join(' ')}`).join('\n')}\nendloop\nendfacet`).join('\n')}\nendsolid tetra`);
   await page.locator('input[type=file]').setInputFiles(Array.from({ length: 35 }, (_, i) => ({ name: `part-${String(i + 1).padStart(2, '0')}.stl`, mimeType: 'model/stl', buffer })));
@@ -94,8 +93,8 @@ test('Marquee scrolls a long list and stops when the mouse is released', async (
   await page.mouse.move(area.x + 1, area.y + 5);
   await page.mouse.down();
   await page.mouse.move(area.x + 150, area.y + area.height + 50, { steps: 8 });
-  await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(250);
-  await expect.poll(() => page.locator('.object-row[aria-selected=true]').count()).toBeGreaterThan(10);
+  await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(70);
+  await expect.poll(() => page.locator('.object-row[aria-selected=true]').count()).toBeGreaterThan(Math.floor(area.height / 38) + 1);
   await page.mouse.up();
   const scroll = await list.evaluate(element => element.scrollTop);
   await page.waitForTimeout(100);
@@ -103,13 +102,11 @@ test('Marquee scrolls a long list and stops when the mouse is released', async (
   await expect(page.locator('.selection-marquee')).toHaveCount(0);
 });
 
-test('Explorer marquee: replace, Ctrl toggle, cancel and blank click preserve activation', async ({ page }, testInfo) => {
+test('Explorer marquee: replace, Ctrl toggle, cancel and blank click preserve visibility', async ({ page }, testInfo) => {
   await page.goto('/');
   await loadExample(page);
   const rows = page.locator('.object-row');
   await expect(rows).toHaveCount(3);
-  await rows.nth(0).click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Aktywuj', exact: true }).click();
   const list = page.getByRole('listbox');
   const area = (await list.boundingBox())!;
   const a = (await rows.nth(0).boundingBox())!, b = (await rows.nth(1).boundingBox())!, c = (await rows.nth(2).boundingBox())!;
@@ -144,11 +141,10 @@ test('Explorer marquee: replace, Ctrl toggle, cancel and blank click preserve ac
   const currentArea = (await list.boundingBox())!;
   await list.click({ position: { x: 60, y: currentArea.height - 15 } });
   await expect(selected).toHaveCount(0);
-  await expect(rows.nth(0)).toHaveAttribute('data-selection', 'active');
-  await expect(page.locator('.active-object')).toContainText('A.stl');
+  await expect(page.locator('.object-row[data-selection=idle]')).toHaveCount(3);
   // Eye controls must not select, activate or start a marquee.
-  await page.getByTitle('Ukryj B.stl', { exact: true }).click();
+  await page.getByTitle('Hide B.stl', { exact: true }).click();
   await expect(selected).toHaveCount(0);
   await expect(page.locator('.selection-marquee')).toHaveCount(0);
-  await expect(page.getByTitle('Pokaż B.stl', { exact: true })).toBeVisible();
+  await expect(page.getByTitle('Show B.stl', { exact: true })).toBeVisible();
 });

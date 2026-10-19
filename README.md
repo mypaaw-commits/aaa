@@ -1,25 +1,25 @@
-# ModelCheck 3D — prototyp 0.11
+# ModelCheck 3D — prototype 0.12
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.11 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
-![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
+[Polish interface preview](docs/polish.png)
 
-## Windows — uruchomienie
+![Intersection results: unique pairs and a compact part checklist](docs/modelcheck3d.png)
 
-Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z npm.
+## Run on Windows
 
-1. Pobierz ZIP z GitHub: **Code → Download ZIP**. Rozpakuj go do osobnego katalogu.
-2. Uruchom `setup.cmd`. Pierwsza instalacja wymaga Internetu.
-3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
-4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
+Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24** with npm.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.11**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+1. Download the source ZIP and extract it into a new folder.
+2. Run `setup.cmd`. The first installation needs an Internet connection.
+3. Run `start.cmd` and use the new browser tab it opens.
+4. Leave the server window open. Ctrl+C stops it.
 
-Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
+The application header should show **0.12**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
-Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
+After installation, the application works offline, including fonts. It listens only on the local computer.
 
-Polecenia ręczne w PowerShell, z katalogu głównego projektu:
+Manual PowerShell commands, from the repository root:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -29,132 +29,105 @@ npm run build --prefix frontend
 .venv\Scripts\python.exe run.py
 ```
 
-Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp testowano na Linuksie; uruchomienie na Windows pozostaje do sprawdzenia na Twoim komputerze.
+The prototype is tested on Linux. The Windows launch scripts and dependency installation still need verification on a Windows computer.
 
-## Jak sprawdzić model
+## Workspace
 
-1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Zachowujemy ich współrzędne i skalę; 1 jednostka STL = 1 mm.
-2. **Sprawdź powiązania** — program informuje, które części bezpośrednio się łączą. Zakładka **Powiązania** zawiera każdą parę raz. Lista jest informacyjna i nie zmienia zaznaczenia, kolorów, widoczności ani kamery. Osobny przycisk **Pokaż parę** dopasowuje wyłącznie kamerę; obie części muszą być widoczne, inaczej przycisk jest niedostępny. Powiązania nie mają ocen, notatek ani odhaczeń.
-3. **Sprawdź intersekcje** — uruchamia konkretną kontrolę. Otwiera osobną zakładkę **Kontrole**, w której zawsze są wszystkie wczytane elementy. Dopiero po uruchomieniu kontroli przy każdym elemencie pojawia się zadanie **Intersekcje sprawdzone**. Wynik mówi o wykrytych intersekcjach, ich braku lub niepewności. Żadne zadanie nie odhacza się automatycznie.
-4. Przy każdej wykrytej intersekcji w zakładce **Kontrole** jest przycisk **Zbliż parę** z nazwami obu części. Pokazuje tylko tę parę, włącza czerwony podgląd przecięcia i dopasowuje kamerę. Może przywrócić widoczność ukrytych części należących do pary; nie zmienia zaznaczenia, aktywacji ani odhaczeń. **Wróć do całego modelu** przywraca całość. Po ręcznej kontroli elementu odhacz jego zadanie. Przeglądanie kontroli, odhaczanie i notatki nie zmieniają widoku 3D ani zaznaczenia. Zakładki można przełączać myszą lub strzałkami klawiatury. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
-5. **Pokaż intersekcje** zmienia tylko widoczność wyników już uruchomionej kontroli. Czerwona, matowa geometria pokazuje wspólną objętość. Otaczające części są przezroczyste, by odsłonić wnętrze. Samo przełączanie widoczności nie tworzy dodatkowych zadań.
-6. **Pokaż cały model** przywraca wszystkie części i dopasowuje kamerę do całości.
+- **Objects, left:** filenames and visibility controls. The bottom toolbar contains Search, Select all, Clear selection, Isolate selection and Show all. Search opens a small field above the toolbar. Hover an icon for its name.
+- **3D view, center:** import STL files, orbit the camera and show intersection geometry. Import preserves coordinates and scale: 1 STL unit = 1 mm.
+- **Results, right:** Connections and Checks tabs. Browsing results does not select or recolor objects.
 
-Oba polecenia analizy obejmują zawsze cały model, również ukryte części. Zaznaczenie i izolacja wpływają tylko na widok. Możesz od razu uruchomić **Sprawdź intersekcje**, bez osobnego uruchamiania powiązań — kontrola uzupełni również tę informację.
+Object activation has been removed. Unselected objects are matte gray; selected objects are muted green. There is no separate beige state, activation command or tutorial overlay.
 
-Ponowne uruchomienie kontroli na niezmienionych danych zachowuje odhaczenia i notatki. Dodanie lub usunięcie części oznacza wcześniejsze zadania jako **nieaktualne**, usuwa ich odhaczenia i blokuje ponowne odhaczanie do czasu uruchomienia kontroli. Notatki istniejących elementów pozostają. Nowy element otrzyma zadanie dopiero po uruchomieniu kontroli.
+![Empty workspace](docs/empty-view.png)
 
-Pusty widok zawiera przycisk wyboru własnych plików STL. Przykłady A/B/C na zrzutach dokumentacji są zestawem testowym; odnośnik do demonstracji został usunięty z interfejsu.
+## Connections and intersections
 
-![Pusty widok z czytelnym przyciskiem wyboru plików STL](docs/empty-view.png)
+**Find connections** computes informational links between directly connected parts. Every pair appears once. The Inspect button frames the pair without changing selection or hiding objects. Both objects must already be visible.
 
-![Zbliżenie pary z intersekcją i przyciski w zakładce Kontrole](docs/intersection-closeup.png)
+**Check intersections** creates a review task for every imported object and opens the Checks tab:
 
-![Osobna zakładka powiązań: jedna pozycja na parę i jawny przycisk dopasowania kamery](docs/relations.png)
+- **Intersections:** one row for each unique intersecting pair. Inspect isolates those two objects, enables the intersection overlay and frames them closely. Back to full model restores the complete view. Inspection never changes selection or marks a task reviewed.
+- **Part checklist:** one compact row per object, with its result, manual review checkbox and optional notes. Results can be Clear, an intersection count, Needs review, or Out of date. Clear results are never checked automatically.
 
-## Menu obiektu i kolory
+The intersection list and checklist scroll independently, so a long list of pairs does not push the checklist out of reach. Notes open only when requested using the speech-bubble icon.
 
-Prawy przycisk na lewej liście **tylko otwiera menu**. Polecenia są sortowane alfabetycznie:
+![Inspect a single intersecting pair](docs/intersection-closeup.png)
 
-- **Aktywuj** — ustawia aktywny obiekt, beżowy również w 3D.
-- **Usuń** — usuwa wskazaną część z bieżącego modelu; jest niedostępne podczas przetwarzania.
+Both analysis commands always check **all imported objects, including hidden ones**. Selection and isolation change the view only. You can run the intersection check directly; it also calculates connections.
 
-Samo otwarcie lub zamknięcie menu nie zmienia aktywnego obiektu. Shift+F10 otwiera to samo menu; strzałki, Home i End wybierają pozycję, Enter wykonuje polecenie, Escape zamyka menu.
+Rerunning a check on the same model preserves manual reviews and notes. Adding or deleting an object marks existing tasks as Out of date, clears their review checkmarks and disables review until the check is rerun. Notes remain. New objects get tasks after the next check.
 
-Na lewej liście:
+## Selection and object order
 
-- Klik zaznacza jeden element; Ctrl + klik dodaje go lub odejmuje.
-- Shift + klik zaznacza zakres od poprzedniego punktu wyboru; Ctrl + Shift dodaje zakres do istniejącego zaznaczenia.
-- Przeciągnięcie od pustego obszaru listy (również jej wąskiego lewego marginesu) tworzy ramkę zaznaczenia. Ctrl przełącza elementy objęte ramką, Shift je dodaje. Przy górnej lub dolnej krawędzi lista przewija się automatycznie. Escape podczas przeciągania przywraca poprzedni wybór.
-- Klik w pustym miejscu usuwa zaznaczenie; Ctrl+A zaznacza wszystkie pozycje aktualnie widoczne przez filtr wyszukiwania.
-- Strzałki, Home i End przemieszczają wybór; Shift rozszerza zakres, Ctrl przenosi tylko fokus, spacja przełącza wskazany element. Escape usuwa zaznaczenie.
-- Lista zachowuje kolejność wczytania i pozwala ją zmieniać: przeciągnij nazwę nad lub pod inną pozycję. Linia wskazuje miejsce wstawienia. Alt + strzałka w górę / w dół przesuwa wskazany element klawiaturą. Zakresy zaznaczania stosują aktualną kolejność i obejmują tylko pozycje pasujące do wyszukiwania. Zmiana kolejności nie przesuwa geometrii, nie zmienia aktywnego obiektu, zaznaczenia ani wyników i odhaczeń kontroli.
-- Ikona oka zmienia tylko widoczność. PPM otwiera menu.
+The object list follows Windows Explorer conventions:
 
-W widoku 3D klik zaznacza jedną część, a Shift/Ctrl + klik dodaje lub odejmuje wskazaną część. Aktywacja pozostaje niezależna od zaznaczenia i odbywa się poleceniem „Aktywuj”; usunięcie aktywnego obiektu nie aktywuje następnego.
-
-![Zaznaczanie ramką na lewej liście, bez zmiany aktywnego obiektu](docs/selection-marquee.png)
-
-| Stan obiektu | Kolor |
+| Action | Result |
 | --- | --- |
-| Nieaktywny i niezaznaczony | Szary |
-| Nieaktywny i zaznaczony | Przygaszony zielony |
-| Aktywny | Beżowy |
+| Click | Select one object |
+| Ctrl + click | Add or remove an object |
+| Shift + click | Select a range |
+| Ctrl + Shift + click | Add a range |
+| Drag from empty list space or its left margin | Draw a selection rectangle |
+| Ctrl / Shift while drawing a rectangle | Toggle / add objects |
+| Click empty space | Clear selection |
+| Ctrl+A while the list has focus | Select all objects matching the search filter |
+| Arrows / Home / End | Move selection; Shift extends a range, Ctrl moves focus only |
+| Space / Escape | Toggle the focused object / clear selection |
+| Drag a filename | Reorder objects; a line marks the insertion point |
+| Alt + Up / Down | Reorder the focused object using the keyboard |
+| Right click / Shift+F10 | Open the Delete context menu |
 
-Kolory są nieco jaśniejsze niż w wersji 0.6. Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
+The rectangle scrolls the list automatically near its top and bottom edges. Escape during a drag restores the previous selection. Reordering preserves selection, reviews, notes and geometry; it does not rerun analysis. Ranges follow the current manual order and search filter.
 
-![Jaśniejsze, matowe kolory elementów i uporządkowane panele](docs/selection.png)
+![Rectangle selection and bottom object tools](docs/selection-marquee.png)
 
-## Kamera, widok 3D i podłoga
+## Camera and visibility
 
-Środkiem obrotu kamery jest środek aktywnego, widocznego elementu. Aktywacja ustawia go w centrum widoku, zachowując kierunek patrzenia i odległość. Po przesunięciu widoku następny obrót ponownie odnosi się do aktywnego elementu. Bez aktywnego widocznego elementu kamera obraca się wokół środka bieżącego widoku. Podczas izolacji pary aktywny element spoza niej nie wpływa na kamerę; kamera centruje widoczną parę.
-
-Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
-
-Interfejs 0.11 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
-
-## Sterowanie
-
-| Sterowanie | Działanie |
+| Action | Result |
 | --- | --- |
-| Środkowy przycisk myszy | Obrót kamery |
-| Shift + środkowy przycisk | Przesuwanie widoku |
-| Kółko | Zoom |
-| Klik w model lub nazwę | Wybór elementu |
-| Ctrl + klik na liście | Dodaj / odejmij element |
-| Shift + klik na liście | Zaznacz zakres |
-| Przeciągnięcie od pustego obszaru listy | Ramka zaznaczenia |
-| Przeciągnięcie nazwy / Alt + strzałki | Zmiana kolejności na liście |
-| Ctrl+A / Escape na liście | Zaznacz pozycje z filtra / odznacz |
-| Strzałki / Home / End na liście | Nawigacja; Shift rozszerza zakres |
-| Shift / Ctrl + klik w 3D | Dodaj / odejmij część |
-| Ikona oka | Ukrywanie i pokazywanie części |
-| Prawy przycisk na liście | Menu „Aktywuj”, „Usuń” |
-| Izoluj wybrane | Widok samych zaznaczonych części |
-| Dopasuj widok / dwuklik | Dopasowanie kamery |
+| Middle mouse | Orbit around the center of the current view |
+| Shift + middle mouse | Pan |
+| Wheel | Zoom |
+| Click a mesh | Select one object |
+| Shift / Ctrl + click a mesh | Add or remove an object |
+| Eye icon | Hide or show an object |
+| Isolate selection | Show and frame selected objects |
+| Show all / Back to full model | Restore and frame all objects |
+| Frame all visible / double click in 3D | Frame visible objects |
+| Floor | Toggle the grid and axes |
 
-Części są nieruchome; warianty geometrii przygotuj w Blenderze.
+Selection does not move the camera. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
-## Zasady analizy i ograniczenia
+## Analysis and limits
 
-- Lista powiązań wynika z rzeczywistej geometrii. AABB służy tylko do odrzucania dalekich par. FCL sprawdza powierzchnie, a Manifold3D / Mesh64 oblicza wspólną objętość brył.
-- Obsługujemy częściowe przenikanie, całkowite zawieranie oraz wiele rozłącznych regionów intersekcji. Nieprawidłowa siatka, błąd obliczeń lub wynik graniczny otrzymują **Wymaga weryfikacji**. Takiej pary nie opisujemy jako pewnego powiązania.
-- Wewnętrzna tolerancja obliczeniowa bezpośredniego połączenia to 0,00001 mm. Nie jest tolerancją produkcyjną. Punktowy i krawędziowy kontakt też trafia na informacyjną listę powiązań. Poprawność technologiczna nie jest oceniana automatycznie.
-- Skrajnie małe objętości przecięcia (≤ max(10⁻¹² mm³, 10⁻¹⁰ objętości mniejszej części)) są niepewne. Nie gwarantujemy wykrycia wszystkich samoprzecięć i wad topologii. Nie naprawiamy automatycznie siatek; scalanie powtarzających się wierzchołków wykonujemy na kopii roboczej, bez przesuwania współrzędnych.
-- Limit importu: 100 MiB na plik i 100 części na sesję. Wydajność rzeczywistych modeli 100 MB nie została jeszcze zmierzona. Pamięć potrzebna na obliczenia i GPU jest większa niż rozmiar samego STL.
-- Analiza działa w tle z licznikiem par. Nie ma jeszcze anulowania pojedynczej długiej operacji Boolean.
-- **Brak zapisu projektu.** Odświeżenie strony zaczyna nową sesję; restart serwera usuwa dane. Zwalnianie opuszczonej sesji po zamknięciu strony jest wykonywane w miarę możliwości przeglądarki; w razie potrzeby zrestartuj serwer, aby odzyskać pamięć po dużych testach.
-- Poza tą iteracją: kontrola prześwitu na wylot, pomiary grubości, automatyczna ocena CNC, ręczne dodawanie powiązań, edycja geometrii i zapis projektów.
+- FCL checks surfaces; Manifold3D / Mesh64 computes intersection volumes. Bounding boxes are used only to reject distant pairs.
+- Partial overlap, complete containment and disconnected intersection regions are supported. Invalid/open meshes, inconsistent calculations and borderline volumes are marked uncertain.
+- Internal connection epsilon: **0.00001 mm**. This is a numerical tolerance, not a manufacturing tolerance. Point and edge contact count as informational connections.
+- Tiny computed intersections, at or below max(10⁻¹² mm³, 10⁻¹⁰ of the smaller part's volume), are uncertain. Automatic repair and reliable detection of all self-intersections are outside this prototype.
+- Import limit: **100 MiB per STL**, up to **100 objects** per session. Real-world 100 MB model performance has not yet been measured. Working memory and GPU requirements exceed file sizes.
+- Geometry operations run in the background. There is no cancellation for a single long Boolean operation yet.
+- **No project saving yet.** Refreshing starts a new session; restarting the server removes session data. Browser language preference is separate and persists locally. Session cleanup on tab closure is best effort.
+- Future work: through-gaps, wall thickness, additional checks and project persistence.
 
-## Rozwój i testy
+## Development and verification
 
-Python + FastAPI + Trimesh + Manifold3D + FCL; frontend React + TypeScript + Three.js.
+Python + FastAPI + Trimesh + Manifold3D + FCL; React + TypeScript + Three.js.
 
 ```bash
-# Linux / macOS, katalog główny repozytorium
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 npm ci --prefix frontend
 npm run build --prefix frontend
-.venv/bin/python run.py
+.venv/bin/python run.py --no-browser
 
-# Backend w trybie deweloperskim, osobny terminal
-.venv/bin/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-# Frontend w osobnym terminalu; proxy do backendu na porcie 8000
-npm run dev --prefix frontend
-
-# Geometria i API
+# Geometry, API and launcher tests
 .venv/bin/python -m pytest backend/tests -q
+
+# Browser tests, with the built frontend and backend running
+CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 ```
 
-Na Windows zastąp `.venv/bin/python` przez `.venv\Scripts\python.exe`.
+For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Testy przeglądarkowe wymagają uruchomionego backendu z wcześniej zbudowanym frontendem:
-
-```bash
-cd frontend
-npx playwright install chromium
-npm run test:e2e
-```
-
-Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, informacyjny charakter powiązań, tworzenie zadań wyłącznie po uruchomieniu kontroli, nieaktualność po zmianach modelu, alfabetyczne menu oraz analizę całego modelu.
+Tests cover geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, unique pair inspection, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

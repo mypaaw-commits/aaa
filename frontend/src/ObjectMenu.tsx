@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef } from 'react';
+import { useI18n } from './i18n';
 
 export type ObjectMenuState = { id: string; x: number; y: number; trigger: HTMLButtonElement | null };
 
-type Props = { menu: ObjectMenuState; name: string; disabled: boolean; onClose: () => void; onDelete: () => void; onActivate: () => void };
+type Props = { menu: ObjectMenuState; name: string; disabled: boolean; onClose: () => void; onDelete: () => void };
 
-export function ObjectMenu({ menu, name, disabled, onClose, onDelete, onActivate }: Props) {
+export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
+  const { t, language } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = ref.current!;
@@ -43,10 +45,9 @@ export function ObjectMenu({ menu, name, disabled, onClose, onDelete, onActivate
   }, [menu, onClose]);
 
   const actions = [
-    { id: 'activate', label: 'Aktywuj', disabled: false, run: onActivate },
-    { id: 'delete', label: 'Usuń', disabled, run: onDelete },
-  ].sort((a, b) => a.label.localeCompare(b.label, 'pl'));
-  return <div ref={ref} className="object-context-menu" role="menu" aria-label={`Opcje elementu ${name}`} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onContextMenu={event => event.preventDefault()}>
+    { id: 'delete', label: t('remove'), disabled, run: onDelete },
+  ].sort((a, b) => a.label.localeCompare(b.label, language));
+  return <div ref={ref} className="object-context-menu" role="menu" aria-label={t('objectOptions', { name })} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onContextMenu={event => event.preventDefault()}>
     {actions.map(action => <button key={action.id} role="menuitem" disabled={action.disabled} onClick={action.run}>{action.label}</button>)}
   </div>;
 }

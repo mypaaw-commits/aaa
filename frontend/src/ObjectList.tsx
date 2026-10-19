@@ -3,17 +3,19 @@ import type { KeyboardEvent, PointerEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { ObjectMenuState } from './ObjectMenu';
 import { partColor } from './types';
+import { useI18n } from './i18n';
 import type { Part } from './types';
 
 type Props = {
-  parts: Part[]; selected: string[]; activeId: string | null; isolated: string[] | null;
+  parts: Part[]; selected: string[]; isolated: string[] | null;
   onChange: (ids: string[]) => void; onVisibility: (part: Part) => void;
   onMenu: (menu: ObjectMenuState) => void; nameSuffix: (part: Part) => string;
   onReorder: (id: string, target: string, before: boolean) => void;
 };
 type Drag = { x: number; y: number; startX: number; startY: number; clientX: number; clientY: number; base: string[]; ctrl: boolean; shift: boolean; moved: boolean };
 
-export function ObjectList({ parts, selected, activeId, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
+export function ObjectList({ parts, selected, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
+  const { t } = useI18n();
   const list = useRef<HTMLDivElement>(null);
   const anchor = useRef<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -121,13 +123,13 @@ export function ObjectList({ parts, selected, activeId, isolated, onChange, onVi
     drag.current = null; setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
-  return <div ref={list} className="object-list" role="listbox" aria-label="Obiekty modelu" aria-multiselectable="true" tabIndex={0}
+  return <div ref={list} className="object-list" role="listbox" aria-label={t('objectList')} aria-multiselectable="true" tabIndex={0}
     onKeyDown={keyboard} onPointerDown={down} onPointerMove={move} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => finish(event, true)}>
-    {!parts.length && <p className="empty-note">Brak elementów do wyświetlenia.</p>}
+    {!parts.length && <p className="empty-note">{t('noObjects')}</p>}
     {parts.map(part => {
       const visible = part.visible && (!isolated || isolated.includes(part.id));
       return <div key={part.id} role="option" aria-selected={selected.includes(part.id)} aria-label={part.name} data-id={part.id}
-        className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${activeId === part.id ? 'active-part' : ''} ${!visible ? 'muted' : ''} ${drop?.id === part.id ? drop.before ? 'drop-before' : 'drop-after' : ''}`}
+        className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${!visible ? 'muted' : ''} ${drop?.id === part.id ? drop.before ? 'drop-before' : 'drop-after' : ''}`}
         onDragOver={event => {
           if (!moving.current || moving.current === part.id) return;
           event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'move';
@@ -144,17 +146,17 @@ export function ObjectList({ parts, selected, activeId, isolated, onChange, onVi
           onReorder(moving.current, part.id, event.clientY < bounds.top + bounds.height / 2);
           moving.current = null; setDrop(null);
         }}
-        data-selection={activeId === part.id ? 'active' : selected.includes(part.id) ? 'selected' : 'idle'}
+        data-selection={selected.includes(part.id) ? 'selected' : 'idle'}
         onClick={event => { if (event.target === event.currentTarget) { choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey); focusRow(part.id); } }}
         onContextMenu={event => { event.preventDefault(); setFocused(part.id); onMenu({ id: part.id, x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') }); }}>
-        <button className="object-select" tabIndex={-1} draggable title="Przeciągnij, aby zmienić kolejność; Alt + strzałki przesuwają klawiaturą" aria-pressed={selected.includes(part.id)} aria-current={activeId === part.id ? 'true' : undefined}
+        <button className="object-select" tabIndex={-1} draggable title={t('reorder')} aria-pressed={selected.includes(part.id)}
           onDragStart={event => { moving.current = part.id; event.dataTransfer.setData('application/x-modelcheck-part', part.id); event.dataTransfer.effectAllowed = 'move'; }}
           onDragEnd={() => { moving.current = null; setDrop(null); }}
           onClick={event => choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey)} onFocus={() => setFocused(part.id)}>
-          <span className="part-swatch" style={{ background: partColor(part.id, selected, activeId) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
-          {!part.solid && <span className="warning-text" title="Siatka wymaga weryfikacji">!</span>}
+          <span className="part-swatch" style={{ background: partColor(part.id, selected) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
+          {!part.solid && <span className="warning-text" title={t('meshWarning')}>!</span>}
         </button>
-        <button className="icon-button visibility-button" title={`${visible ? 'Ukryj' : 'Pokaż'} ${part.name}`} onClick={() => onVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
+        <button className="icon-button visibility-button" title={t(visible ? 'hide' : 'show', { name: part.name })} onClick={() => onVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
       </div>;
     })}
     {marquee && <div className="selection-marquee" style={marquee} />}
