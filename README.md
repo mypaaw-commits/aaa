@@ -1,19 +1,23 @@
-# ModelCheck 3D — prototyp 0.1
+# ModelCheck 3D — prototyp 0.2
 
-Lokalne narzędzie do ręcznej kontroli połączeń części STL. Importuje model w położeniu montażowym, analizuje rzeczywistą geometrię i tworzy checklistę **wszystkich części**. Intersekcje i szczeliny włączasz na żądanie. Dane pozostają w pamięci bieżącej sesji — bez kont, chmury i zapisu projektu.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma większy tekst, jasne panele i jeden przełącznik podświetlenia. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
-## Windows — pierwsze uruchomienie
+![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
-Wymagane **Python 3.12, 64-bit** (z launcherem `py`) oraz **Node.js 22 lub 24** z npm.
+## Windows — uruchomienie
 
-1. Pobierz repozytorium i otwórz jego katalog.
-2. Uruchom `setup.cmd`. Instaluje przypięte zależności i buduje interfejs; pierwsza instalacja wymaga Internetu.
-3. Uruchom `start.cmd`. Otworzy przeglądarkę i lokalny serwer na porcie 8000.
-4. Zostaw okno serwera otwarte. Aby zakończyć, naciśnij w nim Ctrl+C.
+Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z npm.
 
-Po instalacji aplikacja nie potrzebuje Internetu. Czcionki również są dostarczane lokalnie. Serwer nasłuchuje wyłącznie na tym komputerze. Nie jest przygotowany do publicznego wdrożenia.
+1. Pobierz ZIP z GitHub: **Code → Download ZIP**. Rozpakuj go do osobnego katalogu.
+2. Uruchom `setup.cmd`. Pierwsza instalacja wymaga Internetu.
+3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
+4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-Alternatywne polecenia w PowerShell, **z katalogu głównego repozytorium**:
+**Aktualizacja ze starszej wersji:** zamknij poprzedni serwer, rozpakuj nową wersję i ponownie uruchom `setup.cmd`, a potem `start.cmd`. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+
+Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
+
+Polecenia ręczne w PowerShell, z katalogu głównego projektu:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -23,74 +27,71 @@ npm run build --prefix frontend
 .venv\Scripts\python.exe run.py
 ```
 
-Dostępność pakietów `python-fcl` i `manifold3d` dla Windows / Python 3.12 x64 została sprawdzona. Bieżącą wersję aplikacji uruchomiono i testowano na Linuksie; uruchomienie na Windows wymaga jeszcze sprawdzenia na Twoim komputerze. Gdy port 8000 jest zajęty: `python run.py --port 8001` (użyj interpretera z `.venv`).
+Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp testowano na Linuksie; uruchomienie na Windows pozostaje do sprawdzenia na Twoim komputerze.
 
-## Pierwsza kontrola
+## Jak sprawdzić model
 
-1. Wybierz **Importuj STL** lub przeciągnij kilka plików do okna. Jeden plik to jedna część. Zakładamy **1 jednostka STL = 1 mm**. Oryginalne położenie i rozmiar pozostają zachowane; dopasowujemy wyłącznie kamerę.
-2. W liście obiektów wybieraj, ukrywaj i przywracaj części. Shift + klik lub Ctrl + klik pozwala wybrać wiele części. Części są nieruchome.
-3. Wybierz **Cały model** albo **Zaznaczone** i kliknij **Analizuj połączenia**. Cały model obejmuje też ukryte części. Zaznaczone analizuje tylko wybrane części **między sobą**, pomijając resztę.
-4. Checklista zawiera wszystkie elementy, również bez połączeń. Po analizie przy każdym są jego styki, intersekcje, szczeliny do zadanego progu i wyniki niepewne. Opcja na dole odsłania też pary bez kontaktu. Domyślny próg szczelin to **0,1 mm**; zmiana progu wymaga ponownego uruchomienia analizy.
-5. Kliknij parę, żeby wyizolować oba elementy i dopasować kamerę. **Pokaż wszystkie** przywraca model.
-6. Przełączniki **Intersekcje**, **Szczeliny**, **Styki** są początkowo wyłączone. Intersekcja jest czerwoną siatką wspólnej objętości; części stają się przezroczyste, by pokazać obszary wewnętrzne. Szczelina to pomarańczowy odcinek między najbliższymi punktami i znaczniki jego końców — nie pełna mapa szczeliny. Styk ma zielony znacznik punktu kontaktu, jeśli silnik udostępnił wiarygodny punkt. W trybie „Zaznaczone” podświetlenia dotyczą tylko par zaznaczonych części. Ukryte części nie mają podświetlenia.
-7. Oznacz **Do sprawdzenia / OK / Wymaga poprawki**, dodaj notatkę. Zmiana notatki jest stosowana po wyjściu z pola. Para ma jeden wspólny status, widoczny przy obu elementach. Wynik geometrii nigdy sam nie ustawia „OK”.
+1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Po lewej zobaczysz wszystkie elementy, pośrodku złożony model. Pliki zachowują swoje współrzędne i skalę. Przyjmujemy 1 jednostkę STL = 1 mm.
+2. **Sprawdź powiązania** — wybierz zakres **Cały model** albo **Zaznaczone**. Pierwszy obejmuje również ukryte części. Drugi porównuje zaznaczone elementy wyłącznie między sobą.
+3. **Powiązania i checklista** — przy każdym elemencie znajdziesz listę „Powiązany z”. Powiązanie oznacza bezpośrednie dotykanie się części lub ich przenikanie. Element bez powiązań też pozostaje na checkliście. Samo bliskie położenie oddzielonych części nie tworzy powiązania.
+4. **Pokaż intersekcje** — włącz, gdy chcesz obejrzeć czerwone regiony przenikania. Domyślnie są wyłączone. Podświetlamy wspólną objętość, a nie całe części. Otaczające elementy stają się przezroczyste, aby odsłonić wewnętrzne obszary. W zakresie „Zaznaczone” pokazywane są tylko wyniki dla wybranych części.
+5. **Wybierz parę na checkliście** — pozostałe części zostaną ukryte, a kamera dopasowana do tej pary. Wybierz ręcznie **Do sprawdzenia / OK / Wymaga poprawki** i dodaj notatkę. Zmiana notatki jest stosowana po wyjściu z pola. Status i notatka są wspólne dla obu elementów; wynik analizy nie ustawia automatycznie „OK”.
+6. **Pokaż cały model** — przywróć wszystkie części. Wybór elementu na liście lub w 3D odsłania jego pozycję na checkliście. Nazwy powiązanych części są sortowane alfabetycznie z uwzględnieniem numerów.
 
-Analiza wybranego podzbioru aktualizuje tylko jego pary; dotychczasowe wyniki pozostałych par pozostają na checkliście. Przy niezmienionej geometrii ponowna analiza zachowuje ręczne oceny i notatki. Po dodaniu nowych części uruchom analizę, aby znaleźć ich połączenia.
+Analiza podzbioru aktualizuje tylko jego pary. Pozostałe wyniki i ręczne oceny pozostają; niesprawdzone pary są wyraźnie oznaczone jako nieprzeanalizowane. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
 
-Przycisk modelu demonstracyjnego w pustym widoku wczytuje trzy bryły: A–B styk, B–C intersekcja, A–C brak kontaktu. To wyłącznie przykład; możesz od razu wczytać własne STL.
+W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, a B i C mają też intersekcję. A i C są rozdzielone. Możesz od razu użyć własnych STL.
 
-## Kamera jak w Blenderze
+## Sterowanie
 
 | Sterowanie | Działanie |
 | --- | --- |
-| Środkowy przycisk myszy | Obrót |
-| Shift + środkowy przycisk | Przesuwanie |
+| Środkowy przycisk myszy | Obrót kamery |
+| Shift + środkowy przycisk | Przesuwanie widoku |
 | Kółko | Zoom |
-| Lewy przycisk | Wybór części |
-| Shift / Ctrl + klik | Wiele części |
-| Dwuklik w widoku | Dopasowanie kamery |
-| Przyciski X / Y / Z | Widoki osiowe w kamerze perspektywicznej |
+| Klik w model lub nazwę | Wybór elementu |
+| Shift / Ctrl + klik | Wiele elementów |
+| Ikona oka | Ukrywanie i pokazywanie części |
+| Izoluj wybrane | Widok samych zaznaczonych części |
+| Dopasuj widok / dwuklik | Dopasowanie kamery |
 
-## Geometria i ograniczenia prototypu
+Części są nieruchome; warianty geometrii przygotuj w Blenderze.
 
-- AABB odrzuca pary bezspornie poza progiem sąsiedztwa. To filtr, nie dowód kontaktu.
-- **Manifold3D / Mesh64** wyznacza wspólną objętość zamkniętych brył z podwójną precyzją, również przy pełnym zawieraniu i wielu rozłącznych regionach. **FCL** oblicza odległość rzeczywistych powierzchni trójkątów.
-- Otwarta siatka, niespójna orientacja, błąd operacji lub graniczna objętość dają **Wymaga weryfikacji**. Nie naprawiamy automatycznie STL. Scalanie powtarzających się wierzchołków odbywa się na kopii roboczej, bez przesuwania współrzędnych.
-- Tolerancja numeryczna klasyfikacji styku to **0,00001 mm**. Nie jest tolerancją produkcyjną. STL ma własną ograniczoną precyzję; „~0 mm” oznacza styk w granicach tolerancji. Punktowy i krawędziowy kontakt też trafia do ręcznej oceny.
-- Dodatnia wspólna objętość jest intersekcją; skrajnie małe wyniki (≤ max(10⁻¹² mm³, 10⁻¹⁰ objętości mniejszej części)) są niepewne. Nie gwarantujemy wykrycia wszystkich samoprzecięć i wad topologii.
-- Automatyczne wykrywanie prześwitu na wylot, ocena technologiczna, grubość, edycja geometrii, zapis projektu i ręczne dodawanie pominiętych par pozostają poza tą iteracją.
-- Limit importu: **100 MiB na plik i 100 części na sesję**. To limit wejścia, a nie potwierdzenie płynności przy stu dużych siatkach. Siatki, struktury obliczeniowe i GPU wymagają znacznie więcej pamięci niż sam plik STL. Wydajność na rzeczywistych plikach 100 MB i złożonych figurkach nie została jeszcze zmierzona.
-- Analiza działa w wątku roboczym z licznikiem par; pojedyncza trudna operacja Boolean nie ma jeszcze przycisku anulowania ani limitu czasu. Bieżąca para może przez dłuższy czas nie zwiększać licznika.
-- **Odświeżenie strony zaczyna nową sesję; restart serwera usuwa wszystkie dane.** Nic nie jest zapisywane do bazy ani projektu. Do odzyskania pamięci po dużych testach można zrestartować serwer.
+## Zasady analizy i ograniczenia
 
-## Linux / macOS
+- Lista powiązań wynika z rzeczywistej geometrii. AABB służy tylko do odrzucania dalekich par. FCL sprawdza powierzchnie, a Manifold3D / Mesh64 oblicza wspólną objętość brył.
+- Obsługujemy częściowe przenikanie, całkowite zawieranie oraz wiele rozłącznych regionów intersekcji. Nieprawidłowa siatka, błąd obliczeń lub wynik graniczny otrzymują **Wymaga weryfikacji**. Takiej pary nie opisujemy jako pewnego powiązania.
+- Wewnętrzna tolerancja obliczeniowa bezpośredniego połączenia to 0,00001 mm. Nie jest tolerancją produkcyjną. Punktowy i krawędziowy kontakt też stanowi powiązanie wymagające ręcznej oceny.
+- Skrajnie małe objętości przecięcia (≤ max(10⁻¹² mm³, 10⁻¹⁰ objętości mniejszej części)) są niepewne. Nie gwarantujemy wykrycia wszystkich samoprzecięć i wad topologii. Nie naprawiamy automatycznie siatek; scalanie powtarzających się wierzchołków wykonujemy na kopii roboczej, bez przesuwania współrzędnych.
+- Limit importu: 100 MiB na plik i 100 części na sesję. Wydajność rzeczywistych modeli 100 MB nie została jeszcze zmierzona. Pamięć potrzebna na obliczenia i GPU jest większa niż rozmiar samego STL.
+- Analiza działa w tle z licznikiem par. Nie ma jeszcze anulowania pojedynczej długiej operacji Boolean.
+- **Brak zapisu projektu.** Odświeżenie strony zaczyna nową sesję; restart serwera usuwa dane. Zwalnianie opuszczonej sesji po zamknięciu strony jest wykonywane w miarę możliwości przeglądarki; w razie potrzeby zrestartuj serwer, aby odzyskać pamięć po dużych testach.
+- Poza tą iteracją: kontrola prześwitu na wylot, pomiary grubości, automatyczna ocena CNC, ręczne dodawanie powiązań, edycja geometrii i zapis projektów.
+
+## Rozwój i testy
+
+Python + FastAPI + Trimesh + Manifold3D + FCL; frontend React + TypeScript + Three.js.
 
 ```bash
+# Linux / macOS, katalog główny repozytorium
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 npm ci --prefix frontend
 npm run build --prefix frontend
 .venv/bin/python run.py
-```
 
-## Praca nad kodem i testy
-
-Backend: Python + FastAPI + Trimesh + Manifold3D + FCL. Frontend: React + TypeScript + Three.js. Frontend deweloperski proxy'uje `/api` do backendu.
-
-```bash
-# Terminal 1, z katalogu głównego
+# Backend w trybie deweloperskim, osobny terminal
 .venv/bin/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-# Terminal 2
+# Frontend w osobnym terminalu; proxy do backendu na porcie 8000
 npm run dev --prefix frontend
-# Testy geometrii i API
+
+# Geometria i API
 .venv/bin/python -m pytest backend/tests -q
-# Kompilacja TypeScript i wydanie produkcyjne
-npm run build --prefix frontend
 ```
 
 Na Windows zastąp `.venv/bin/python` przez `.venv\Scripts\python.exe`.
 
-Testy przeglądarkowe (wymagają uruchomionego backendu z wcześniej zbudowanym frontendem):
+Testy przeglądarkowe wymagają uruchomionego backendu z wcześniej zbudowanym frontendem:
 
 ```bash
 cd frontend
@@ -98,4 +99,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują import, model ABC, checklistę, izolację, statusy i notatki, zakres analizy oraz przełączniki widoku. Testy geometrii obejmują szczeliny, kontakty, przenikanie, zawieranie, wiele regionów i uszkodzoną siatkę. Dane użytkownika nie są częścią zestawu testowego.
+Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, wspólne oceny par i zakres sprawdzania.

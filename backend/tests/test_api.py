@@ -31,7 +31,7 @@ def test_demo_analysis_review_isolation_and_delete():
     result = analyze(sid)
     assert result['job']['total'] == 3
     assert len({row['id'] for row in result['relations']}) == 3
-    assert sorted(row['kind'] for row in result['relations']) == ['CONTACT', 'DISCONNECTED', 'INTERSECTION']
+    assert sorted(row['kind'] for row in result['relations']) == ['CONNECTED', 'DISCONNECTED', 'INTERSECTION']
     intersection = next(row for row in result['relations'] if row['kind'] == 'INTERSECTION')
     assert intersection['status'] == 'TODO'
     path = f"/api/sessions/{sid}/relations/{intersection['id']}"
@@ -65,7 +65,7 @@ def test_upload_preserves_coordinates_and_reports_invalid_files():
     assert np.allclose(loaded.bounds, mesh.bounds)
 
 
-def test_invalid_selection_threshold_and_status():
+def test_invalid_selection_and_removed_analysis_setting():
     sid = session()
     assert client.post(f'/api/sessions/{sid}/analysis', json={}).status_code == 400
     assert client.post(f'/api/sessions/{sid}/analysis', json={'gap': -1}).status_code == 422

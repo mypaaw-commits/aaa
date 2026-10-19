@@ -5,7 +5,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { Part, Relation } from './types';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; isolated: string[] | null; intersections: boolean; gaps: boolean; contacts: boolean; wireframe: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; isolated: string[] | null; intersections: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
 type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
@@ -156,11 +156,11 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       mesh.material.emissive.set(current.selected.includes(part.id) ? '#245963' : '#000000');
       mesh.material.emissiveIntensity = .35;
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .25 : 1;
-      mesh.material.depthWrite = !ghost; mesh.material.wireframe = current.wireframe;
+      mesh.material.depthWrite = !ghost; mesh.material.wireframe = false;
     }
     e.invalidate();
   }
-  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.intersections, props.wireframe]);
+  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.intersections]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -181,22 +181,11 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
             mesh.renderOrder = 5; e.overlays.add(mesh); e.invalidate();
           } catch (error) { if (!cancelled) latest.current.onError(`Nie udało się wyświetlić przecięcia: ${String(error)}`); }
         }
-        if (relation.points && ((relation.kind === 'GAP' && props.gaps) || (relation.kind === 'CONTACT' && props.contacts))) {
-          const points = relation.points.map(p => new THREE.Vector3(...p as [number, number, number]));
-          const color = relation.kind === 'GAP' ? '#ffbc66' : '#56d6bc';
-          const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, depthTest: false }));
-          line.renderOrder = 10; e.overlays.add(line);
-          const radius = Math.max(.015, points[0].distanceTo(points[1]) * .12);
-          points.forEach(point => {
-            const marker = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), new THREE.MeshBasicMaterial({ color, depthTest: false }));
-            marker.position.copy(point); marker.renderOrder = 10; e.overlays.add(marker); e.invalidate();
-          });
-        }
       }
     };
     void load();
     return () => { cancelled = true; abort.abort(); clear(); };
-  }, [props.relations, props.parts, props.isolated, props.intersections, props.gaps, props.contacts, props.session]);
+  }, [props.relations, props.parts, props.isolated, props.intersections, props.session]);
 
   return <div className="canvas-host" ref={host} aria-label="Interaktywny widok modelu 3D" />;
 });

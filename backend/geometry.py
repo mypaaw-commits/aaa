@@ -41,12 +41,12 @@ def bounds_distance(a: Shape, b: Shape) -> float:
     return float(np.linalg.norm(delta))
 
 
-def analyze_pair(a: Shape, b: Shape, gap: float):
+def analyze_pair(a: Shape, b: Shape):
     """Returns metadata and optional exact Boolean intersection mesh."""
-    base = {'kind': 'UNCERTAIN', 'distance': None, 'volume': None, 'points': None, 'message': ''}
+    base = {'kind': 'UNCERTAIN', 'volume': None, 'message': ''}
     lower = bounds_distance(a, b)
-    if lower > gap + CONTACT_EPS:
-        return {**base, 'kind': 'DISCONNECTED', 'message': f'Odległość co najmniej {lower:.5g} mm (filtr przestrzenny).'}, None
+    if lower > CONTACT_EPS:
+        return {**base, 'kind': 'DISCONNECTED', 'message': 'Elementy nie są ze sobą powiązane.'}, None
     if not a.solid or not b.solid:
         return {**base, 'message': 'Siatka otwarta, niespójna lub z odwróconą orientacją. Nie można pewnie ocenić bryły.'}, None
     try:
@@ -65,25 +65,15 @@ def analyze_pair(a: Shape, b: Shape, gap: float):
             output = solid_common.to_mesh64()
             common = trimesh.Trimesh(vertices=output.vert_properties[:, :3], faces=output.tri_verts, process=False)
             return {**base, 'kind': 'INTERSECTION', 'volume': volume,
-                    'distance': 0.0, 'message': 'Wspólna objętość brył.'}, common
-        request = fcl.DistanceRequest(enable_nearest_points=True)
+                    'message': 'Elementy przenikają się. Włącz podświetlenie, aby zobaczyć wspólny obszar.'}, common
+        # Surface proximity is only an internal test for a direct connection.
+        # Separated parts are never proposed as related merely because they are near.
         result = fcl.DistanceResult()
-        distance = float(fcl.distance(a.collision, b.collision, request, result))
+        distance = float(fcl.distance(a.collision, b.collision, fcl.DistanceRequest(), result))
         if not np.isfinite(distance) or distance < -CONTACT_EPS:
-            return {**base, 'message': 'Test powierzchni i operacja bryłowa dały sprzeczne wyniki.'}, None
-        distance = max(0.0, distance)
-        points = np.asarray(result.nearest_points, dtype=float)
-        valid_points = points.shape == (2, 3) and np.isfinite(points).all()
-        # FCL does not promise nearest points for touching meshes. Use a collision witness.
-        if distance <= CONTACT_EPS:
-            contacts = fcl.CollisionResult()
-            fcl.collide(a.collision, b.collision, fcl.CollisionRequest(num_max_contacts=1, enable_contact=True), contacts)
-            if contacts.contacts:
-                point = np.asarray(contacts.contacts[0].pos)
-                points = np.array([point, point]); valid_points = np.isfinite(points).all()
-        kind = 'CONTACT' if distance <= CONTACT_EPS else ('GAP' if distance <= gap else 'DISCONNECTED')
-        return {**base, 'kind': kind, 'distance': distance, 'volume': 0.0,
-                'points': points.tolist() if valid_points else None,
-                'message': 'Styk w granicach tolerancji numerycznej.' if kind == 'CONTACT' else ''}, None
+            return {**base, 'message': 'Wyniki analizy są sprzeczne. Sprawdź tę parę ręcznie.'}, None
+        connected = distance <= CONTACT_EPS
+        return {**base, 'kind': 'CONNECTED' if connected else 'DISCONNECTED', 'volume': 0.0,
+                'message': 'Elementy są ze sobą powiązane. Nie wykryto intersekcji.' if connected else 'Elementy nie są ze sobą powiązane.'}, None
     except Exception as exc:
         return {**base, 'message': f'Analiza nie powiodła się ({type(exc).__name__}). Wymagana ręczna weryfikacja.'}, None

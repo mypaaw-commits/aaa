@@ -11,10 +11,10 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONTACT_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.1.0')
+app = FastAPI(title='ModelCheck 3D', version='0.2.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -23,7 +23,7 @@ LIMIT = 100 * 1024 * 1024
 
 class AnalysisRequest(BaseModel):
     part_ids: list[str] | None = None
-    gap: float = Field(default=0.1, ge=0, le=10)
+    model_config = ConfigDict(extra='forbid')
 
 
 class Review(BaseModel):
@@ -150,17 +150,17 @@ def delete_part(sid: str, pid: str):
     return {'ok': True}
 
 
-def run_analysis(session, ids, gap, job):
+def run_analysis(session, ids, job):
     pairs = list(combinations(ids, 2))
     results = {}
     try:
         for i, (a, b) in enumerate(pairs):
-            metadata, common = analyze_pair(session['parts'][a]['shape'], session['parts'][b]['shape'], gap)
+            metadata, common = analyze_pair(session['parts'][a]['shape'], session['parts'][b]['shape'])
             rid = ':'.join(sorted([a, b]))
             previous = session['relations'].get(rid, {})
             results[rid] = {'id': rid, 'part_ids': [a, b], **metadata,
                             'status': previous.get('status', 'TODO'), 'note': previous.get('note', ''),
-                            'gap_threshold': gap, '_mesh': common}
+                            '_mesh': common}
             job['completed'] = i + 1
         session['relations'].update(results)
         job['state'] = 'done'
@@ -184,7 +184,7 @@ def start_analysis(sid: str, request: AnalysisRequest):
         job = {'id': uuid4().hex, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
                'seconds': 0, '_start': time.monotonic(), 'error': None}
         session['job'] = job
-        executor.submit(run_analysis, session, ids, request.gap, job)
+        executor.submit(run_analysis, session, ids, job)
         return {key: val for key, val in job.items() if not key.startswith('_')}
 
 

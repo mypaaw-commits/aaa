@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowLeft, Box, Boxes, Check, CheckCheck, ChevronDown, ChevronRight, Circle, CircleAlert, Crosshair, Eye, EyeOff, Focus, Grid2X2, Layers3, ListChecks, LoaderCircle, Maximize, MousePointer2, Play, Plus, RotateCcw, ScanLine, Search, Settings2, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { ArrowLeft, Box, Boxes, Check, ChevronDown, ChevronRight, CircleAlert, Eye, EyeOff, Focus, HelpCircle, Layers3, ListChecks, LoaderCircle, Maximize, Play, Plus, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { Viewer } from './Viewer';
 import type { ViewerHandle } from './Viewer';
 import { api, labels, number, palette } from './types';
@@ -8,29 +8,23 @@ import './style.css';
 
 type Imported = { parts: Omit<Part, 'color' | 'visible'>[]; errors: { name: string; message: string }[] };
 const statusLabel = { TODO: 'Do sprawdzenia', OK: 'OK', FIX: 'Wymaga poprawki' };
-function measurement(relation: Relation) {
-  if (relation.kind === 'INTERSECTION') return `${number(relation.volume ?? 0)} mm³`;
-  if (relation.kind === 'CONTACT') return '~0 mm';
-  if (relation.distance !== null) return `${number(relation.distance)} mm`;
-  return relation.kind === 'DISCONNECTED' ? 'poza progiem' : 'wynik niepewny';
-}
-
-function ReviewCard({ relation, parts, disabled, onReview }: { relation: Relation; parts: Part[]; disabled: boolean; onReview: (status: Relation['status'], note: string) => void }) {
+function ReviewCard({ relation, parts, disabled, onReview, onClose }: { relation: Relation; parts: Part[]; disabled: boolean; onReview: (status: Relation['status'], note: string) => void; onClose: () => void }) {
   const [note, setNote] = useState(relation.note);
   useEffect(() => { setNote(relation.note); }, [relation.id, relation.note]);
-  const names = relation.part_ids.map(id => parts.find(part => part.id === id)?.name ?? '?');
-  return <div className="review-card">
-    <div className="eyebrow">WYBRANE POŁĄCZENIE</div>
-    <h3 title={names.join(' ↔ ')}>{names[0]} <span>↔</span> {names[1]}</h3>
-    <div className={`result-banner ${relation.kind.toLowerCase()}`}><span className="dot" />{labels[relation.kind]}<strong>{measurement(relation)}</strong></div>
-    {relation.message && <p className="result-explanation">{relation.message}</p>}
-    {relation.kind === 'GAP' && <p className="result-explanation">Pomarańczowy znacznik wskazuje najbliższe punkty powierzchni, a nie cały obszar szczeliny.</p>}
-    <label className="field-label">Twoja ocena połączenia</label>
-    <div className="review-actions">{(['TODO', 'OK', 'FIX'] as const).map(status => <button key={status} disabled={disabled} className={`${relation.status === status ? 'active' : ''} ${status.toLowerCase()}`} onClick={() => onReview(status, note)}>{status === 'OK' ? <Check size={14} /> : status === 'FIX' ? <TriangleAlert size={13} /> : <Circle size={12} />}{statusLabel[status]}</button>)}</div>
+  const names = relation.part_ids.map(id => parts.find(part => part.id === id)?.name ?? '?').sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
+  return <section className="review-card" aria-label="Kontrola wybranej pary">
+    <div className="review-heading"><h3>Kontrola pary</h3><button className="icon-button" title="Zamknij ocenę" onClick={onClose}><X size={18} /></button></div>
+    <p className="pair-names">{names[0]} <span>↔</span> {names[1]}</p>
+    <p className={`result-banner ${relation.kind.toLowerCase()}`}>{relation.kind === 'CONNECTED' ? 'Powiązane — bez intersekcji' : labels[relation.kind]}</p>
+    {relation.kind === 'UNCERTAIN' && <p className="result-explanation">{relation.message}</p>}
+    <label className="field-label" htmlFor="review-status">Twoja ocena</label>
+    <select id="review-status" disabled={disabled} value={relation.status} onChange={event => onReview(event.target.value as Relation['status'], note)}>
+      {(['TODO', 'OK', 'FIX'] as const).map(status => <option key={status} value={status}>{statusLabel[status]}</option>)}
+    </select>
     <label className="field-label" htmlFor="note">Notatka</label>
-    <textarea id="note" disabled={disabled} maxLength={5000} placeholder="Co warto sprawdzić w tym połączeniu?" value={note} onChange={event => setNote(event.target.value)} onBlur={() => { if (note !== relation.note) onReview(relation.status, note); }} />
-    <p className="microcopy">Ocena ręczna • wspólna dla obu elementów</p>
-  </div>;
+    <textarea id="note" disabled={disabled} maxLength={5000} placeholder="Dodaj uwagę do tej pary…" value={note} onChange={event => setNote(event.target.value)} onBlur={() => { if (note !== relation.note) onReview(relation.status, note); }} />
+    <p className="microcopy">Ocena i notatka są wspólne dla obu elementów.</p>
+  </section>;
 }
 
 export default function App() {
@@ -41,21 +35,14 @@ export default function App() {
   const [isolated, setIsolated] = useState<string[] | null>(null);
   const [activePair, setActivePair] = useState<string | null>(null);
   const [scope, setScope] = useState<'all' | 'selected'>('all');
-  const [gap, setGap] = useState('0.1');
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
-  const [checkSearch, setCheckSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState('all');
-  const [showDisconnected, setShowDisconnected] = useState(false);
   const [intersections, setIntersections] = useState(false);
-  const [gaps, setGaps] = useState(false);
-  const [contacts, setContacts] = useState(false);
-  const [wireframe, setWireframe] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [help, setHelp] = useState(false);
   const viewer = useRef<ViewerHandle>(null);
@@ -92,7 +79,7 @@ export default function App() {
         else {
           setRelations(result.relations);
           if (result.job.state === 'error') setError(result.job.error ?? 'Analiza nie powiodła się.');
-          else setNotice(`Analiza zakończona: ${result.job.total} unikalnych par · ${number(result.job.seconds, 2)} s.`);
+          else setNotice(`Sprawdzono par: ${result.job.total}. Czas: ${number(result.job.seconds, 2)} s.`);
         }
       } catch (err) {
         if (!stopped) { setError((err as Error).message); setJob(previous => previous ? { ...previous, state: 'error' } : null); }
@@ -133,12 +120,10 @@ export default function App() {
     finally { setLoading(false); }
   }
   async function analyze() {
-    const threshold = Number(gap.replace(',', '.'));
-    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 10) { setError('Próg szczeliny musi wynosić od 0 do 10 mm.'); return; }
     setLoading(true); setError(''); setNotice('');
     try {
       await reviewQueue.current;
-      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gap: threshold, part_ids: scope === 'selected' ? selected : null }) });
+      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part_ids: scope === 'selected' ? selected : null }) });
       // Always poll once: a small model can finish before POST returns.
       setJob({ ...result, state: 'running' });
     } catch (err) { setError((err as Error).message); }
@@ -148,6 +133,8 @@ export default function App() {
     setActivePair(null);
     if (!id) { if (!multi) setSelected([]); return; }
     if (isolated && !isolated.includes(id)) setIsolated(null);
+    setExpanded(previous => new Set([...previous, id]));
+    requestAnimationFrame(() => document.getElementById(`check-${id}`)?.scrollIntoView({ block: 'nearest' }));
     setSelected(previous => multi ? previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id] : [id]);
   }
   function focusPair(relation: Relation) {
@@ -159,6 +146,7 @@ export default function App() {
   async function removePart(id: string) {
     setLoading(true);
     try {
+      await reviewQueue.current;
       await api(`/sessions/${session}/parts/${id}`, { method: 'DELETE' });
       setParts(previous => previous.filter(part => part.id !== id));
       setRelations(previous => previous.filter(relation => !relation.part_ids.includes(id)));
@@ -181,76 +169,122 @@ export default function App() {
   const duplicateName = (part: Part) => parts.filter(other => other.name === part.name).length > 1 ? ` · ${parts.indexOf(part) + 1}` : '';
   const fitSelected = () => { if (selected.length) { setIsolated(selected); setParts(previous => previous.map(part => selected.includes(part.id) ? { ...part, visible: true } : part)); requestAnimationFrame(() => viewer.current?.fit(selected)); } };
 
-  return <div className="app" onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth.current++; setDragging(true); } }} onDragOver={event => event.preventDefault()} onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); }} onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
+  function toggleVisibility(part: Part) {
+    const visible = part.visible && (!isolated || isolated.includes(part.id));
+    setParts(previous => previous.map(item => item.id === part.id ? { ...item, visible: !visible } : item));
+    if (!visible && isolated && !isolated.includes(part.id)) setIsolated([...isolated, part.id]);
+  }
+  const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
+  const connectedCount = relations.filter(row => row.kind === 'CONNECTED' || row.kind === 'INTERSECTION').length;
+  const uncertainCount = relations.filter(row => row.kind === 'UNCERTAIN').length;
+
+  return <div className="app"
+    onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth.current++; setDragging(true); } }}
+    onDragOver={event => event.preventDefault()}
+    onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); }}
+    onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
+
     <header className="topbar">
-      <a href="#" className="brand" onClick={event => event.preventDefault()} aria-label="ModelCheck 3D"><span className="brand-icon"><Boxes size={23} /></span><span>modelcheck<span className="brand-3d">3D</span></span></a>
-      <span className="header-divider" /><div className="project-title">Przestrzeń robocza <span>PROTOTYP 0.1</span></div>
-      <div className="header-right"><span className="local-indicator"><span />Lokalnie · bez zapisu</span><button className="icon-button" title="Sterowanie i informacje" onClick={() => setHelp(!help)}><Settings2 size={18}/></button><button className="button primary import-header" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Plus size={16} />Importuj STL</button></div>
+      <div className="brand"><Boxes size={27} /><strong>ModelCheck <span>3D</span></strong></div>
+      <span className="app-purpose">Powiązania części i intersekcje</span>
+      <div className="header-actions">
+        <button className="button secondary help-button" onClick={() => setHelp(true)}><HelpCircle size={18} />Jak obsługiwać?</button>
+        <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Plus size={18} />Wczytaj STL</button>
+      </div>
     </header>
-    <div className="workspace-toolbar"><div className="breadcrumb"><Box size={15} /><span>Projekt bez nazwy</span><ChevronRight size={13} /><strong>Kontrola połączeń</strong></div><span className="units">Jednostki <b>mm</b><span className="small-divider" />Geometria nieruchoma</span></div>
+
     <main className="workspace">
-      <aside className="objects panel">
-        <div className="panel-heading"><h2><Layers3 size={16} />Obiekty <span className="count">{parts.length}</span></h2><button className="icon-button" title="Dodaj pliki STL" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Plus size={17}/></button></div>
-        <div className="panel-search"><Search size={14}/><input aria-label="Szukaj obiektu" placeholder="Szukaj obiektu…" value={search} onChange={event => setSearch(event.target.value)} /><kbd>STL</kbd></div>
-        <div className="tree-heading"><ChevronDown size={13}/><Boxes size={14}/><span>Elementy modelu</span><span>{parts.length}</span></div>
+      <aside className="objects panel" aria-label="Lista elementów">
+        <div className="panel-heading"><h2><Layers3 size={19} />Elementy</h2><span className="count">{parts.length}</span></div>
+        <label className="panel-search"><Search size={17} /><input aria-label="Szukaj elementu" placeholder="Szukaj elementu…" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <p className="selection-hint">Kliknij element. Shift + klik dodaje kolejne.</p>
         <div className="object-list">
-          {!parts.length && <div className="object-empty"><Box size={28}/><p>Tu pojawią się Twoje części</p><span>Zaimportuj osobne pliki STL</span></div>}
-          {parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase())).map(part => <div key={part.id} className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${!part.visible || (isolated && !isolated.includes(part.id)) ? 'muted' : ''}`} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') select(part.id, event.shiftKey); }} onClick={event => select(part.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
-            <Box size={15} style={{ color: part.color }} /><span className="object-name" title={part.name}>{part.name}{duplicateName(part)}</span>{!part.solid && <span title="Siatka nie jest poprawną zamkniętą bryłą"><TriangleAlert size={12} className="warning-text"/></span>}
-            <button className="icon-button visibility-button" title={part.visible ? `Ukryj ${part.name}` : `Pokaż ${part.name}`} onClick={event => { event.stopPropagation(); setParts(previous => previous.map(item => item.id === part.id ? { ...item, visible: !item.visible } : item)); }}>{part.visible && (!isolated || isolated.includes(part.id)) ? <Eye size={14}/> : <EyeOff size={14}/>}</button>
-            <button className="icon-button remove-button" title={`Usuń ${part.name}`} disabled={busy} onClick={event => { event.stopPropagation(); void removePart(part.id); }}><Trash2 size={13}/></button>
-          </div>)}
-          {parts.length > 0 && !parts.some(part => part.name.toLowerCase().includes(search.toLowerCase())) && <p className="subtle-empty">Brak pasujących obiektów.</p>}
-        </div>
-        <div className="object-actions"><button className="button quiet" disabled={!parts.length} onClick={() => setSelected(parts.map(part => part.id))}><CheckCheck size={14}/>Zaznacz wszystkie</button><button className="icon-button" title="Odznacz wszystkie" disabled={!selected.length} onClick={() => { setSelected([]); setActivePair(null); }}><X size={15}/></button></div>
-        <div className="selection-info"><span className="eyebrow">ZAZNACZENIE</span><strong>{selected.length ? `${selected.length} ${selected.length === 1 ? 'element' : 'elementów'}` : 'Brak zaznaczenia'}</strong><p>Shift + klik, aby wybrać kilka części.</p><button className="button secondary wide" disabled={!selected.length} onClick={fitSelected}><Focus size={15}/>Izoluj zaznaczenie</button><button className="text-button" disabled={!parts.length} onClick={showAll}><Eye size={14}/>Pokaż wszystkie</button></div>
-        <div className="import-card"><ArrowDownToLine size={18}/><div><strong>Dodaj części modelu</strong><span>Przeciągnij STL do okna</span></div><button className="icon-button" disabled={busy || !session} title="Wybierz pliki" onClick={() => fileInput.current?.click()}><Plus size={17}/></button></div>
-      </aside>
-      <section className="center">
-        <div className="viewport-top"><div><span className="live-dot"/><strong>Widok 3D</strong><span className="view-label">Perspektywa</span></div><div><button className={`icon-button ${wireframe ? 'active' : ''}`} title="Przełącz widok siatki" aria-pressed={wireframe} onClick={() => setWireframe(!wireframe)}><Grid2X2 size={16}/></button><button className="icon-button" title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={16}/></button></div></div>
-        <div className="viewport">
-          <Viewer ref={viewer} session={session} parts={parts} relations={overlayRelations} selected={selected} isolated={isolated} intersections={intersections} gaps={gaps} contacts={contacts} wireframe={wireframe} onSelect={select} onError={setError} onLoaded={setLoaded}/>
-          <div className="scene-label"><Box size={13}/>{isolated ? 'Izolacja części' : 'Cały model'}<span>{parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length} widocznych</span></div>
-          <div className="axis-controls"><button className="axis-z" title="Widok z góry" onClick={() => viewer.current?.view('z')}>Z</button><div><button className="axis-y" title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Y</button><button className="axis-x" title="Widok z boku" onClick={() => viewer.current?.view('x')}>X</button></div><button className="axis-perspective" title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}><Box size={13}/></button></div>
-          {!parts.length && <div className="welcome"><div className="welcome-symbol"><Boxes size={39} strokeWidth={1}/></div><span className="eyebrow">OD MODELU DO PEWNEGO POŁĄCZENIA</span><h1>Każda część.<br/><span>Każde połączenie.</span></h1><p>Wczytaj części modelu i sprawdź,<br/>jak pasują do siebie w przestrzeni.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16}/>Wczytaj pliki STL</button><button className="text-button demo-button" disabled={busy || !session} onClick={() => void demo()}>lub wypróbuj model A / B / C <ChevronRight size={14}/></button><span className="welcome-note">Wiele plików · do 100 MB na plik · jednostki mm</span></div>}
-          {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={14} className="spin"/>Przygotowywanie widoku 3D… {loaded}/{parts.length}</div>}
-          {isolated && <button className="exit-isolation button secondary" onClick={showAll}><ArrowLeft size={14}/>Wróć do całego modelu</button>}
-          <div className="viewport-tools"><button className="icon-button active" title="Zaznaczanie: klik lub Shift + klik"><MousePointer2 size={17}/></button><span/><button className="icon-button" title="Dopasuj kamerę" onClick={() => viewer.current?.fit()}><Crosshair size={17}/></button><button className="icon-button" title="Przywróć widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}><RotateCcw size={16}/></button></div>
-          <div className="view-legend">{intersections && <span><i className="red"/>Wspólna objętość</span>}{gaps && <span><i className="orange"/>Najbliższe punkty szczeliny</span>}{contacts && <span><i className="teal"/>Punkt styku</span>}</div>
-          <div className="camera-hint"><span>ŚPM <b>Obrót</b></span><span>Shift + ŚPM <b>Przesuwanie</b></span><span>Kółko <b>Zoom</b></span></div>
-        </div>
-        <section className="analysis-panel"><div className="analysis-heading"><h2><ScanLine size={17}/>Analiza połączeń</h2><span>{job?.state === 'running' ? 'Analizowanie…' : job?.state === 'done' ? 'Analiza zakończona' : 'Uruchamiana na żądanie'}</span></div>
-          <div className="analysis-controls"><div className="scope-control"><span className="field-label">Zakres analizy</span><div className="segmented"><button disabled={busy} className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><Boxes size={14}/>Cały model</button><button disabled={busy} className={scope === 'selected' ? 'active' : ''} onClick={() => setScope('selected')}><MousePointer2 size={13}/>Zaznaczone <span>{selected.length}</span></button></div></div><label className="gap-control"><span className="field-label">Próg szczeliny</span><span className="number-input"><input aria-label="Próg szczeliny w milimetrach" inputMode="decimal" value={gap} disabled={busy} onChange={event => setGap(event.target.value)}/><span>mm</span></span></label><button className="button primary analyze-button" disabled={busy || !session || (scope === 'all' ? parts.length : selected.length) < 2} onClick={() => void analyze()}>{busy ? <LoaderCircle size={16} className="spin"/> : <Play size={15}/>} {job?.state === 'running' ? 'Analizowanie' : 'Analizuj połączenia'}</button></div>
-          {job?.state === 'running' && <div className="analysis-progress"><div><span style={{ width: `${job.total ? job.completed / job.total * 100 : 0}%` }}/></div><span>{job.completed} / {job.total} par</span></div>}
-          <div className="overlays"><span>Pokaż w widoku</span><button className={`toggle-chip intersection ${intersections ? 'enabled' : ''}`} aria-pressed={intersections} onClick={() => setIntersections(!intersections)}><span className="toggle-switch"/>Intersekcje <small>{relations.filter(row => row.kind === 'INTERSECTION').length}</small></button><button className={`toggle-chip gap ${gaps ? 'enabled' : ''}`} aria-pressed={gaps} onClick={() => setGaps(!gaps)}><span className="toggle-switch"/>Szczeliny <small>{relations.filter(row => row.kind === 'GAP').length}</small></button><button className={`toggle-chip contact ${contacts ? 'enabled' : ''}`} aria-pressed={contacts} onClick={() => setContacts(!contacts)}><span className="toggle-switch"/>Styki <small>{relations.filter(row => row.kind === 'CONTACT').length}</small></button></div>
-        </section>
-      </section>
-      <aside className="checklist panel"><div className="panel-heading"><h2><ListChecks size={17}/>Checklista</h2><span className="count">{parts.length}</span></div><div className="checklist-intro"><h3>Kontrola elementów</h3><p>Wszystkie części. Twoja ocena połączeń.</p><div className="review-progress"><span>Sprawdzone pary <strong>{reviewed}<span> / {relevant.length}</span></strong></span><div><i style={{ width: `${relevant.length ? reviewed / relevant.length * 100 : 0}%` }}/></div></div></div>
-        <div className="checklist-filters"><button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Wszystkie</button><button className={filter === 'TODO' ? 'active' : ''} onClick={() => setFilter('TODO')}>Do sprawdzenia</button><button className={filter === 'FIX' ? 'active' : ''} onClick={() => setFilter('FIX')}>Poprawki</button></div>
-        <div className="panel-search checklist-search"><Search size={14}/><input aria-label="Szukaj na checkliście" placeholder="Szukaj elementu…" value={checkSearch} onChange={event => setCheckSearch(event.target.value)}/></div>
-        <div className="checklist-content">
-          {!parts.length && <div className="checklist-empty"><ListChecks size={30} strokeWidth={1.2}/><h3>Wszystko na swoim miejscu</h3><p>Po imporcie zobaczysz tu każdy element. Analiza uzupełni listę jego połączeń.</p><span><Circle size={10}/> Czeka na pierwszy model</span></div>}
-          {parts.filter(part => part.name.toLowerCase().includes(checkSearch.toLowerCase())).map(part => {
-            const all = relations.filter(row => row.part_ids.includes(part.id));
-            const rows = all.filter(row => (showDisconnected || row.kind !== 'DISCONNECTED') && (filter === 'all' || row.status === filter));
-            const isExpanded = expanded.has(part.id);
-            return <div className={`check-part ${selected.includes(part.id) ? 'highlight' : ''}`} key={part.id}><button className="check-part-heading" onClick={() => toggleExpanded(part.id)}>{isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}<span className="part-swatch" style={{ background: part.color }}/><strong title={part.name}>{part.name}{duplicateName(part)}</strong><span className="count">{all.filter(row => row.kind !== 'DISCONNECTED').length}</span></button>
-              {isExpanded && <div className="check-part-relations">{!rows.length && <p className="no-relations">{!all.length ? 'Oczekuje na analizę' : filter !== 'all' ? 'Brak par z tym statusem' : 'Brak połączeń w wybranym progu'}</p>}{rows.map(row => {
-                const other = parts.find(item => item.id === row.part_ids.find(id => id !== part.id));
-                return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row)}><span className={`relation-dot ${row.kind.toLowerCase()}`}/><div><strong title={other?.name}>↔ {other?.name}{other ? duplicateName(other) : ''}</strong><span>{labels[row.kind]} <i>·</i> {measurement(row)}</span></div><span className={`review-status ${row.status.toLowerCase()}`} title={statusLabel[row.status]}>{row.status === 'OK' ? <Check size={13}/> : row.status === 'FIX' ? <TriangleAlert size={13}/> : <Circle size={12}/>}</span></button>;
-              })}</div>}
+          {!parts.length && <p className="empty-note">Wczytane pliki STL pojawią się tutaj.</p>}
+          {parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase())).map(part => {
+            const visible = part.visible && (!isolated || isolated.includes(part.id));
+            return <div key={part.id} className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${!visible ? 'muted' : ''}`}>
+              <button className="object-select" aria-pressed={selected.includes(part.id)} onClick={event => select(part.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
+                <span className="part-swatch" style={{ background: part.color }} /><span title={part.name}>{part.name}{duplicateName(part)}</span>
+                {!part.solid && <TriangleAlert size={15} className="warning-text" aria-label="Siatka wymaga weryfikacji" />}
+              </button>
+              <button className="icon-button visibility-button" title={`${visible ? 'Ukryj' : 'Pokaż'} ${part.name}`} onClick={() => toggleVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
+              <button className="icon-button remove-button" title={`Usuń ${part.name}`} disabled={busy} onClick={() => void removePart(part.id)}><Trash2 size={16} /></button>
             </div>;
           })}
+          {parts.length > 0 && !parts.some(part => part.name.toLowerCase().includes(search.toLowerCase())) && <p className="empty-note">Nie znaleziono elementu.</p>}
         </div>
-        {active && <ReviewCard relation={active} parts={parts} disabled={busy} onReview={(status, note) => void review(active, status, note)} />}
-        <label className="show-disconnected"><input type="checkbox" checked={showDisconnected} onChange={event => setShowDisconnected(event.target.checked)}/>Pokaż także pary bez kontaktu</label>
-        <div className="checklist-footer"><CircleAlert size={14}/><span>Wynik analizy nie zastępuje Twojej oceny.</span></div>
+        <div className="selection-tools">
+          <div className="selection-summary"><strong>Zaznaczone: {selected.length}</strong><button className="text-button" disabled={!parts.length} onClick={() => setSelected(parts.map(part => part.id))}>Zaznacz wszystkie</button></div>
+          <button className="button secondary wide" disabled={!selected.length} onClick={fitSelected}><Focus size={18} />Izoluj wybrane</button>
+          <button className="button secondary wide" disabled={!parts.length} onClick={showAll}><Eye size={18} />Pokaż cały model</button>
+          {selected.length > 0 && <button className="text-button wide" onClick={() => { setSelected([]); setActivePair(null); }}>Odznacz wszystkie</button>}
+        </div>
+      </aside>
+
+      <section className="center" aria-label="Analiza i widok 3D">
+        <section className="analysis-panel">
+          <div className="analysis-controls">
+            <label className="scope-control"><span>Zakres sprawdzania</span><select aria-label="Zakres sprawdzania" value={scope} disabled={busy} onChange={event => setScope(event.target.value as 'all' | 'selected')}><option value="all">Cały model</option><option value="selected">Zaznaczone ({selected.length})</option></select></label>
+            <button className="button primary analyze-button" disabled={busy || !session || (scope === 'all' ? parts.length : selected.length) < 2} onClick={() => void analyze()}>{busy ? <LoaderCircle size={18} className="spin" /> : <Play size={17} />}{job?.state === 'running' ? 'Sprawdzanie…' : 'Sprawdź powiązania'}</button>
+          </div>
+          <p className="scope-hint">{scope === 'all' ? 'Sprawdza wszystkie elementy, również ukryte.' : 'Sprawdza zaznaczone elementy tylko między sobą.'}</p>
+          <div className="analysis-result">
+            <label className={`intersection-toggle ${intersections ? 'enabled' : ''}`}><input type="checkbox" checked={intersections} disabled={!parts.length} onChange={event => setIntersections(event.target.checked)} /><span>Pokaż intersekcje</span></label>
+            <span className="analysis-heading">{job?.state === 'running' ? `${job.completed} / ${job.total} par` : job?.state === 'done' ? `Analiza zakończona · intersekcje: ${intersectionCount}` : 'Najpierw sprawdź powiązania.'}</span>
+          </div>
+          {job?.state === 'running' && <progress aria-label="Postęp analizy" max={job.total} value={job.completed} />}
+        </section>
+
+        <div className="viewport">
+          <Viewer ref={viewer} session={session} parts={parts} relations={overlayRelations} selected={selected} isolated={isolated} intersections={intersections} onSelect={select} onError={setError} onLoaded={setLoaded} />
+          <div className="scene-label"><Box size={17} /><strong>{isolated ? 'Wybrane elementy' : 'Cały model'}</strong><span>Widoczne: {parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length}/{parts.length}</span></div>
+          <div className="view-controls"><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
+          {!parts.length && <div className="welcome"><Boxes size={48} strokeWidth={1.3} /><h1>Wczytaj części modelu</h1><p>Wybierz pliki STL, aby zobaczyć model<br />i sprawdzić powiązania między elementami.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={19} />Wybierz pliki STL</button><button className="text-button" disabled={busy || !session} onClick={() => void demo()}>Wypróbuj przykład A / B / C</button><small>Możesz też przeciągnąć pliki do okna.</small></div>}
+          {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />Wczytywanie widoku 3D: {loaded}/{parts.length}</div>}
+          {isolated && <button className="exit-isolation button secondary" onClick={showAll}><ArrowLeft size={17} />Wróć do całego modelu</button>}
+          {intersections && <p className="view-legend"><span />Czerwony obszar = intersekcja</p>}
+          <div className="camera-hint"><span><b>Obrót:</b> środkowy przycisk</span><span><b>Przesuwanie:</b> Shift + środkowy</span><span><b>Zoom:</b> kółko</span></div>
+        </div>
+      </section>
+
+      <aside className="checklist panel" aria-label="Powiązania i checklista">
+        <div className="panel-heading"><h2><ListChecks size={20} />Powiązania i checklista</h2></div>
+        <div className="checklist-intro"><p>Wybierz parę, aby obejrzeć ją w 3D i oznaczyć wynik kontroli.</p><div className="review-progress"><strong>{reviewed} / {relevant.length}</strong> par sprawdzonych</div></div>
+        <div className="checklist-content">
+          {!parts.length && <p className="empty-note">Tutaj znajdziesz wszystkie wczytane elementy i ich powiązania.</p>}
+          {parts.map(part => {
+            const all = relations.filter(row => row.part_ids.includes(part.id));
+            const otherName = (row: Relation) => parts.find(item => item.id === row.part_ids.find(id => id !== part.id))?.name ?? '';
+            const rows = all.filter(row => row.kind !== 'DISCONNECTED').sort((a, b) => otherName(a).localeCompare(otherName(b), 'pl', { numeric: true }));
+            const complete = all.length === parts.length - 1;
+            const isExpanded = expanded.has(part.id);
+            return <section className={`check-part ${selected.includes(part.id) ? 'highlight' : ''}`} key={part.id} id={`check-${part.id}`}>
+              <button className="check-part-heading" onClick={() => toggleExpanded(part.id)} aria-expanded={isExpanded}>
+                <span className="part-swatch" style={{ background: part.color }} /><strong title={part.name}>{part.name}{duplicateName(part)}</strong>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </button>
+              {isExpanded && <div className="check-part-relations">
+                {rows.length > 0 && <p className="relation-list-label">{rows.some(row => row.kind === 'UNCERTAIN') ? 'Powiązania i pary do weryfikacji:' : 'Powiązany z:'}</p>}
+                {rows.map(row => {
+                  const other = parts.find(item => item.id === row.part_ids.find(id => id !== part.id));
+                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row)}>
+                    <div className="relation-title"><strong title={other?.name}>{other?.name}{other ? duplicateName(other) : ''}</strong><span className={`relation-kind ${row.kind.toLowerCase()}`}>{labels[row.kind]}</span></div>
+                    <div className={`review-status ${row.status.toLowerCase()}`}>{row.status === 'OK' ? <Check size={15} /> : row.status === 'FIX' ? <TriangleAlert size={15} /> : <span className="status-circle" />}{statusLabel[row.status]}<ChevronRight size={16} /></div>
+                  </button>;
+                })}
+                {!rows.length && <p className="no-relations">{parts.length === 1 ? 'Brak innych elementów.' : complete ? 'Brak powiązań z innymi elementami.' : all.length ? 'Brak powiązań w sprawdzonej grupie.' : 'Uruchom sprawdzanie powiązań.'}</p>}
+                {rows.length > 0 && !complete && <p className="partial-analysis">Pozostałe pary nie zostały jeszcze sprawdzone.</p>}
+              </div>}
+            </section>;
+          })}
+        </div>
+        {active && <ReviewCard relation={active} parts={parts} disabled={busy} onReview={(status, note) => void review(active, status, note)} onClose={() => setActivePair(null)} />}
       </aside>
     </main>
-    <footer className="statusbar"><span><span className={`status-dot ${busy ? 'working' : ''}`}/>{busy ? 'Przetwarzanie' : parts.length ? 'Gotowy do kontroli' : 'Gotowy do importu'}</span><span>{parts.length} części <i>·</i> {number(parts.reduce((sum, part) => sum + part.faces, 0), 0)} trójkątów <i>·</i> {relations.length} przeanalizowanych par</span><span className="status-right">ModelCheck 3D <b>0.1</b></span></footer>
-    {(error || notice) && <div className={`notification ${error ? 'error' : ''}`} role={error ? 'alert' : 'status'}>{error ? <TriangleAlert size={17}/> : loading ? <LoaderCircle size={17} className="spin"/> : <Check size={17}/>}<span>{error || notice}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => { setError(''); setNotice(''); }}><X size={16}/></button></div>}
-    {dragging && <div className="drop-overlay"><Upload size={44}/><h2>Upuść pliki STL</h2><p>Każdy plik zostanie osobnym elementem modelu.</p></div>}
-    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Obsługa prototypu" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij" onClick={() => setHelp(false)}><X size={20}/></button><div className="eyebrow">MODELCHECK 3D · PROTOTYP</div><h2>Twoja przestrzeń kontroli</h2><p>Importuj osobne STL w położeniu montażowym. Przyjmujemy 1 jednostkę = 1 mm. Program nie przesuwa ani nie skaluje części.</p><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót kamery</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie widoku</dd><dt>Kółko myszy</dt><dd>Przybliżanie</dd><dt>Klik / Shift + klik</dt><dd>Zaznaczenie / wiele części</dd><dt>Dwuklik w widoku</dt><dd>Dopasowanie kamery</dd></dl><p>Analiza „Cały model” obejmuje także ukryte części. „Zaznaczone” sprawdza wybrane części wyłącznie między sobą.</p><p>Intersekcje pokazują czerwoną bryłę wspólnej objętości. Szczeliny i styki mają znaczniki najbliższych punktów. Przy intersekcjach części stają się przezroczyste.</p><p>Domyślny próg szczelin: 0,1 mm. Tolerancja numeryczna styku: 0,00001 mm; nie stanowi tolerancji produkcyjnej. Nieprawidłowe siatki wymagają ręcznej weryfikacji.</p><div className="help-note"><CircleAlert size={17}/>Dane są tylko w bieżącej sesji. Odświeżenie strony rozpoczyna nowy projekt; restart serwera usuwa wszystkie sesje.</div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
+
+    <footer className="statusbar"><span role="status">{busy ? 'Przetwarzanie…' : notice || 'Gotowy do pracy'}</span><span>{parts.length} elementów · {connectedCount} powiązań{uncertainCount > 0 ? ` · ${uncertainCount} do weryfikacji` : ''}</span><span className="session-note">Dane tylko w bieżącej sesji</span></footer>
+    {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{error}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => setError('')}><X size={20} /></button></div>}
+    {dragging && <div className="drop-overlay"><Upload size={48} /><h2>Upuść pliki STL</h2><p>Każdy plik to osobny element modelu.</p></div>}
+    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Włącz <strong>Pokaż intersekcje</strong>, aby zobaczyć na czerwono miejsca przenikania.</li><li>Kliknij powiązaną część na checkliście. Obejrzysz parę w 3D, wybierzesz ocenę i dodasz notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Analiza całego modelu obejmuje także ukryte części. Wybrany zakres porównuje tylko zaznaczone części między sobą.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
   </div>;
 }
