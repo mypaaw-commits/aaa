@@ -6,8 +6,8 @@ import type { Part, Relation } from './types';
 import { partColor, partColors } from './types';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; activePartId: string | null; isolated: string[] | null; intersections: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; invalidate: () => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; activePartId: string | null; isolated: string[] | null; intersections: boolean; floor: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
   object.traverse(child => {
@@ -81,7 +81,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       grid.scale.setScalar(Math.max(max * 2 / 80, .001));
       axes.position.copy(grid.position); axes.scale.setScalar(max / 60);
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, invalidate };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, invalidate };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); invalidate();
@@ -118,6 +118,13 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       dispose(scene); renderer.dispose(); container.removeChild(renderer.domElement); engine.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const e = engine.current; if (!e) return;
+    e.grid.visible = props.floor;
+    e.axes.visible = props.floor;
+    e.invalidate();
+  }, [props.floor]);
 
   useEffect(() => {
     const e = engine.current; if (!e || !props.session) return;

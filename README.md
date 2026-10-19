@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.6
+# ModelCheck 3D — prototyp 0.7
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.6 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.7 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.6**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.7**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
 
@@ -59,13 +59,19 @@ Lewy przycisk zaznacza, Shift + klik dodaje lub odejmuje części. Nie aktywuje 
 
 | Stan obiektu | Kolor |
 | --- | --- |
-| Nieaktywny i niezaznaczony | Ciemnoszary |
+| Nieaktywny i niezaznaczony | Szary |
 | Nieaktywny i zaznaczony | Przygaszony zielony |
-| Aktywny | Ciemny beż |
+| Aktywny | Beżowy |
 
-Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
+W wersji 0.7 kolory są nieco jaśniejsze. Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
 
-![Ciemniejsze, matowe kolory elementów](docs/selection.png)
+![Jaśniejsze, matowe kolory elementów i uporządkowane panele](docs/selection.png)
+
+## Widok 3D i podłoga
+
+Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
+
+Interfejs 0.7 ma jaśniejsze panele, większe odstępy i spokojniejsze obramowania. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na listach, a checklista pokazuje również pasek postępu ręcznego sprawdzania.
 
 ## Sterowanie
 

@@ -6,7 +6,7 @@ export type CheckTask = { id: string; part_id: string; check: 'INTERSECTIONS'; d
 export type AnalysisResult = { job: Job | null; relations: Relation[]; tasks: CheckTask[] };
 export type Job = { id: string; check: CheckKind; state: 'running' | 'done' | 'error'; completed: number; total: number; seconds: number; error: string | null };
 export const labels: Record<Kind, string> = { INTERSECTION: 'Intersekcja', CONNECTED: 'Powiązanie', DISCONNECTED: 'Brak powiązania', UNCERTAIN: 'Wymaga weryfikacji' };
-export const partColors = { idle: '#787878', selected: '#42613b', active: '#8d7b5b' };
+export const partColors = { idle: '#949494', selected: '#67845b', active: '#aa9674' };
 export function partColor(id: string, selected: string[], activeId: string | null) {
   return id === activeId ? partColors.active : selected.includes(id) ? partColors.selected : partColors.idle;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Box, ChevronDown, ChevronRight, CircleAlert, Eye, EyeOff, Focus, LoaderCircle, Maximize, Search, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Box, ChevronDown, ChevronRight, CircleAlert, CircleHelp, Grid2X2, Link2, ScanLine, Upload, Eye, EyeOff, Focus, LoaderCircle, Maximize, Search, TriangleAlert, X } from 'lucide-react';
 import { Viewer } from './Viewer';
 import { ObjectMenu } from './ObjectMenu';
 import type { ObjectMenuState } from './ObjectMenu';
@@ -41,6 +41,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [intersections, setIntersections] = useState(false);
+  const [floor, setFloor] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [help, setHelp] = useState(false);
   const [objectMenu, setObjectMenu] = useState<ObjectMenuState | null>(null);
@@ -216,10 +217,10 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><strong>ModelCheck 3D</strong><span className="app-version">0.6</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck 3D</strong><span className="app-version">0.7</span></div>
       <div className="header-actions">
-        <button className="button secondary help-button" onClick={() => setHelp(true)}>Pomoc</button>
-        <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wczytaj STL</button>
+        <button className="button secondary help-button" onClick={() => setHelp(true)}><CircleHelp size={16} />Pomoc</button>
+        <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />Wczytaj STL</button>
       </div>
     </header>
 
@@ -266,8 +267,8 @@ export default function App() {
       <section className="center" aria-label="Analiza i widok 3D">
         <section className="analysis-panel">
           <div className="analysis-controls">
-            <button className="button primary analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{busy && <LoaderCircle size={16} className="spin" />}{job?.state === 'running' && job.check === 'RELATIONS' ? 'Sprawdzanie…' : 'Sprawdź powiązania'}</button>
-            <button className="button secondary" disabled={busy || !session || parts.length < 2} onClick={() => void analyze('INTERSECTIONS')}>{job?.state === 'running' && job.check === 'INTERSECTIONS' ? 'Sprawdzanie…' : 'Sprawdź intersekcje'}</button><span className="analysis-scope-note">Cały model, także ukryte obiekty</span>
+            <button className="button primary analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Link2 size={16} />}{job?.state === 'running' && job.check === 'RELATIONS' ? 'Sprawdzanie…' : 'Sprawdź powiązania'}</button>
+            <button className="button secondary" disabled={busy || !session || parts.length < 2} onClick={() => void analyze('INTERSECTIONS')}><ScanLine size={16} />{job?.state === 'running' && job.check === 'INTERSECTIONS' ? 'Sprawdzanie…' : 'Sprawdź intersekcje'}</button><span className="analysis-scope-note">Cały model, także ukryte obiekty</span>
           </div>
           <div className="analysis-result">
             <label className={`intersection-toggle ${intersections ? 'enabled' : ''}`}><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>Pokaż intersekcje</span></label>
@@ -277,9 +278,11 @@ export default function App() {
         </section>
 
         <div className="viewport">
-          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections && intersectionsReady} onSelect={select} onError={setError} onLoaded={setLoaded} />
+          <div className="viewport-toolbar">
           <div className="scene-label"><Box size={17} /><strong>{isolated ? 'Wybrane elementy' : 'Cały model'}</strong><span>Widoczne: {parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length}/{parts.length}</span></div>
-          <div className="view-controls"><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
+          <div className="view-controls"><button className="floor-toggle" aria-label="Podłoga" aria-pressed={floor} title="Pokaż lub ukryj siatkę podłogi i osie" onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />Podłoga</button><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
+          </div>
+          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} onSelect={select} onError={setError} onLoaded={setLoaded} />
           {!parts.length && <div className="welcome"><h1>Brak modelu</h1><p>Wczytaj pliki STL lub przeciągnij je do okna.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wybierz pliki STL</button><button className="text-button" disabled={busy || !session} onClick={() => void demo()}>Wypróbuj przykład A / B / C</button></div>}
           {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />Wczytywanie widoku 3D: {loaded}/{parts.length}</div>}
           {isolated && <button className="exit-isolation button secondary" onClick={showAll}><ArrowLeft size={17} />Wróć do całego modelu</button>}
@@ -289,8 +292,8 @@ export default function App() {
       </section>
 
       <aside className="checklist panel" aria-label="Powiązania i kontrole">
-        <div className="panel-heading"><h2>Powiązania i kontrole</h2></div>
-        <div className="checklist-intro"><p>Powiązania to informacja. Zadania dodasz, uruchamiając konkretną kontrolę.</p>{tasks.length > 0 && <div className="review-progress"><strong>{reviewed} / {tasks.length}</strong> kontroli wykonanych</div>}</div>
+        <div className="panel-heading"><h2>Powiązania i kontrole</h2><span className="count">{parts.length}</span></div>
+        <div className="checklist-intro"><p>Powiązania to informacja. Zadania dodasz, uruchamiając konkretną kontrolę.</p>{tasks.length > 0 && <div className="review-progress"><span><strong>{reviewed} / {tasks.length}</strong> kontroli wykonanych</span><div className="review-meter" aria-hidden="true"><span style={{ width: `${reviewed / tasks.length * 100}%` }} /></div></div>}</div>
         <div className="checklist-content">
           {!parts.length && <p className="empty-note">Tutaj znajdziesz wszystkie wczytane elementy i ich powiązania.</p>}
           {parts.map(part => {
@@ -330,6 +333,6 @@ export default function App() {
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onActivate={() => { setSelection(previous => ({ ...previous, activeId: objectMenu.id })); setObjectMenu(null); }} onDelete={() => void removePart(objectMenu.id)} />}
     {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{error}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => setError('')}><X size={20} /></button></div>}
     {dragging && <div className="drop-overlay"><h2>Upuść pliki STL</h2><p>Każdy plik to osobny element modelu.</p></div>}
-    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Kliknięcie pary pokazuje ją w 3D. Odhaczasz wyłącznie uruchomione kontrole; ich szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>LPM zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
+    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Kliknięcie pary pokazuje ją w 3D. Odhaczasz wyłącznie uruchomione kontrole; ich szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Przycisk „Podłoga” nad widokiem 3D ukrywa siatkę i osie. Nie zmienia położenia ani wyników analizy modelu.</p><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>LPM zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
   </div>;
 }
