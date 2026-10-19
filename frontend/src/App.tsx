@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Box, ChevronDown, ChevronRight, CircleAlert, CircleHelp, Grid2X2, Link2, ScanLine, Upload, Eye, EyeOff, Focus, LoaderCircle, Maximize, Search, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Box, CircleAlert, CircleHelp, Grid2X2, Link2, ScanLine, Upload, Eye, EyeOff, Focus, LoaderCircle, Maximize, Search, TriangleAlert, X } from 'lucide-react';
 import { Viewer } from './Viewer';
 import { ObjectMenu } from './ObjectMenu';
 import type { ObjectMenuState } from './ObjectMenu';
@@ -39,7 +39,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [panelTab, setPanelTab] = useState<'relations' | 'checks'>('relations');
   const [intersections, setIntersections] = useState(false);
   const [floor, setFloor] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -94,7 +94,6 @@ export default function App() {
 
   const addImported = async (result: Imported) => {
     setParts(previous => [...previous, ...result.parts.map(part => ({ ...part, visible: true }))]);
-    setExpanded(previous => new Set([...previous, ...result.parts.map(part => part.id)]));
     if (result.errors.length) setError(result.errors.map(item => `${item.name}: ${item.message}`).join('\n'));
     if (result.parts.length) {
       setNotice(`Wczytano ${result.parts.length} ${result.parts.length === 1 ? 'część' : 'części'}. Współrzędne STL zostały zachowane.`);
@@ -135,6 +134,7 @@ export default function App() {
       const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ check }) });
       // Always poll once: a small model can finish before POST returns.
       setJob({ ...result, state: 'running' });
+      setPanelTab(check === 'INTERSECTIONS' ? 'checks' : 'relations');
     } catch (err) { setError((err as Error).message); }
     finally { setLoading(false); }
   }
@@ -143,18 +143,14 @@ export default function App() {
     setActiveTaskId(null);
     if (!id) { if (!multi) setSelection(previous => ({ ...previous, ids: [] })); return; }
     if (isolated && !isolated.includes(id)) setIsolated(null);
-    setExpanded(previous => new Set([...previous, id]));
-    requestAnimationFrame(() => document.getElementById(`check-${id}`)?.scrollIntoView({ block: 'nearest' }));
     setSelection(previous => {
       const ids = !multi ? [id] : previous.ids.includes(id) ? previous.ids.filter(item => item !== id) : [...previous.ids, id];
       return { ...previous, ids };
     });
   }
   function focusPair(relation: Relation) {
-    setActiveTaskId(null);
-    setActivePair(relation.id); setSelection(previous => ({ ...previous, ids: relation.part_ids })); setIsolated(relation.part_ids);
-    setParts(previous => previous.map(part => relation.part_ids.includes(part.id) ? { ...part, visible: true } : part));
-    requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
+    setActivePair(relation.id);
+    viewer.current?.fit(relation.part_ids);
   }
   function showAll() {
     setIsolated(null);
@@ -196,7 +192,6 @@ export default function App() {
     });
     return reviewQueue.current;
   }
-  const toggleExpanded = (id: string) => setExpanded(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const duplicateName = (part: Part) => parts.filter(other => other.name === part.name).length > 1 ? ` · ${parts.indexOf(part) + 1}` : '';
   const fitSelected = () => { if (selected.length) { setIsolated(selected); setParts(previous => previous.map(part => selected.includes(part.id) ? { ...part, visible: true } : part)); requestAnimationFrame(() => viewer.current?.fit(selected)); } };
 
@@ -206,6 +201,10 @@ export default function App() {
     if (!visible && isolated && !isolated.includes(part.id)) setIsolated([...isolated, part.id]);
   }
   const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
+  const relatedPairs = relations.filter(row => row.kind !== 'DISCONNECTED').map(row => ({
+    relation: row,
+    parts: row.part_ids.map(id => parts.find(part => part.id === id)).sort((a, b) => (a?.name ?? '').localeCompare(b?.name ?? '', 'pl', { numeric: true })),
+  })).sort((a, b) => a.parts.map(part => part?.name).join(' / ').localeCompare(b.parts.map(part => part?.name).join(' / '), 'pl', { numeric: true }));
   const connectedCount = relations.filter(row => row.kind === 'CONNECTED' || row.kind === 'INTERSECTION').length;
   const uncertainCount = relations.filter(row => row.kind === 'UNCERTAIN').length;
 
@@ -217,7 +216,7 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck 3D</strong><span className="app-version">0.7</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck 3D</strong><span className="app-version">0.8</span></div>
       <div className="header-actions">
         <button className="button secondary help-button" onClick={() => setHelp(true)}><CircleHelp size={16} />Pomoc</button>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />Wczytaj STL</button>
@@ -292,40 +291,46 @@ export default function App() {
       </section>
 
       <aside className="checklist panel" aria-label="Powiązania i kontrole">
-        <div className="panel-heading"><h2>Powiązania i kontrole</h2><span className="count">{parts.length}</span></div>
-        <div className="checklist-intro"><p>Powiązania to informacja. Zadania dodasz, uruchamiając konkretną kontrolę.</p>{tasks.length > 0 && <div className="review-progress"><span><strong>{reviewed} / {tasks.length}</strong> kontroli wykonanych</span><div className="review-meter" aria-hidden="true"><span style={{ width: `${reviewed / tasks.length * 100}%` }} /></div></div>}</div>
-        <div className="checklist-content">
-          {!parts.length && <p className="empty-note">Tutaj znajdziesz wszystkie wczytane elementy i ich powiązania.</p>}
-          {parts.map(part => {
-            const all = relations.filter(row => row.part_ids.includes(part.id));
-            const otherName = (row: Relation) => parts.find(item => item.id === row.part_ids.find(id => id !== part.id))?.name ?? '';
-            const rows = all.filter(row => row.kind !== 'DISCONNECTED').sort((a, b) => otherName(a).localeCompare(otherName(b), 'pl', { numeric: true }));
-            const complete = all.length === parts.length - 1;
-            const isExpanded = expanded.has(part.id);
-            return <section className={`check-part ${selected.includes(part.id) ? 'highlight' : ''} ${activePartId === part.id ? 'active-part' : ''}`} key={part.id} id={`check-${part.id}`}>
-              <button className="check-part-heading" onClick={() => toggleExpanded(part.id)} aria-expanded={isExpanded}>
-                <span className="part-swatch" style={{ background: partColor(part.id, selected, activePartId) }} /><strong title={part.name}>{part.name}{duplicateName(part)}</strong>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-              </button>
-              {isExpanded && <div className="check-part-relations">
-                {rows.length > 0 && <p className="relation-list-label">{rows.some(row => row.kind === 'UNCERTAIN') ? 'Powiązania i pary do weryfikacji:' : 'Powiązany z:'}</p>}
-                {rows.map(row => {
-                  const other = parts.find(item => item.id === row.part_ids.find(id => id !== part.id));
-                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row)}>
-                    <div className="relation-title"><strong title={other?.name}>{other?.name}{other ? duplicateName(other) : ''}</strong><span className={`relation-kind ${row.kind.toLowerCase()}`}>{row.kind === 'UNCERTAIN' || intersectionsReady ? labels[row.kind] : 'Powiązanie'}</span><ChevronRight size={15} /></div>
-
-                  </button>;
-                })}
-                {!rows.length && <p className="no-relations">{parts.length === 1 ? 'Brak innych elementów.' : complete ? 'Brak powiązań z innymi elementami.' : all.length ? 'Brak powiązań w sprawdzonej grupie.' : 'Uruchom sprawdzanie powiązań.'}</p>}
-                {rows.length > 0 && !complete && <p className="partial-analysis">Pozostałe pary nie zostały jeszcze sprawdzone.</p>}
-                {tasks.filter(task => task.part_id === part.id).map(task => <div className="check-task" key={task.id}>
-                  <div className="task-line"><label><input type="checkbox" aria-label={`Intersekcje: ${part.name} — sprawdzone`} checked={task.done} disabled={busy || task.stale} onChange={event => void reviewTask(task, event.target.checked, task.note)} />Intersekcje sprawdzone</label><button className="text-button" aria-label={`Szczegóły kontroli ${part.name}`} onClick={() => setActiveTaskId(task.id)}>Szczegóły</button></div>
-                  <p className={task.stale || task.result === 'UNCERTAIN' ? 'task-warning' : ''}>{taskResult(task)}</p>
-                </div>)}
-              </div>}
-            </section>;
-          })}
+        <div className="result-tabs" role="tablist" aria-label="Wyniki modelu" onKeyDown={event => {
+          const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')];
+          const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : -1;
+          if (next >= 0) { event.preventDefault(); tabs[next].focus(); tabs[next].click(); }
+        }}>
+          <button id="relations-tab" role="tab" aria-selected={panelTab === 'relations'} aria-controls="relations-panel" tabIndex={panelTab === 'relations' ? 0 : -1} onClick={() => setPanelTab('relations')}>Powiązania</button>
+          <button id="checks-tab" role="tab" aria-selected={panelTab === 'checks'} aria-controls="checks-panel" tabIndex={panelTab === 'checks' ? 0 : -1} onClick={() => setPanelTab('checks')}>Kontrole</button>
         </div>
-        {activeTask && activeTaskPart && <TaskCard task={activeTask} part={activeTaskPart} disabled={!!busy} onReview={(done, note) => void reviewTask(activeTask, done, note)} onClose={() => setActiveTaskId(null)} />}
+        <section id="relations-panel" className="result-panel" role="tabpanel" aria-labelledby="relations-tab" hidden={panelTab !== 'relations'}>
+          <div className="checklist-intro"><p>Każda para jest pokazana raz. „Pokaż parę” dopasowuje tylko kamerę.</p></div>
+          <div className="checklist-content pair-list">
+            {relatedPairs.map(({ relation: row, parts: pair }) => {
+              const name = (part: Part | undefined) => part ? part.name + duplicateName(part) : 'Usunięty element';
+              const visible = pair.every(part => part?.visible && (!isolated || isolated.includes(part.id)));
+              return <div className={`relation-row ${activePair === row.id ? 'active' : ''}`} key={row.id}>
+                <div className="pair-names"><span title={name(pair[0])}>{name(pair[0])}</span><span className="pair-connector">↔</span><span title={name(pair[1])}>{name(pair[1])}</span></div>
+                <div className="pair-actions"><span className={`relation-kind ${row.kind === 'UNCERTAIN' || intersectionsReady ? row.kind.toLowerCase() : 'connected'}`}>{row.kind === 'UNCERTAIN' || intersectionsReady ? labels[row.kind] : 'Powiązanie'}</span><button className="button" aria-label={`Pokaż parę ${name(pair[0])} i ${name(pair[1])}`} title={visible ? 'Dopasuj kamerę bez zaznaczania i ukrywania części' : 'Najpierw pokaż obie części na lewej liście'} disabled={!visible} onClick={() => focusPair(row)}><Focus size={14} />Pokaż parę</button></div>
+              </div>;
+            })}
+            {!relations.some(row => row.kind !== 'DISCONNECTED') && <p className="empty-note">{!parts.length ? 'Wczytaj model, aby sprawdzić powiązania.' : parts.length === 1 ? 'Brak innych elementów.' : relations.length === parts.length * (parts.length - 1) / 2 ? 'Brak powiązań z innymi elementami.' : 'Uruchom „Sprawdź powiązania”, aby zobaczyć listę par.'}</p>}
+          </div>
+        </section>
+        <section id="checks-panel" className="result-panel" role="tabpanel" aria-labelledby="checks-tab" hidden={panelTab !== 'checks'}>
+          <div className="checklist-intro"><p>Wszystkie elementy modelu. Kontrole pojawiają się dopiero po ich uruchomieniu.</p>{tasks.length > 0 && <div className="review-progress"><span><strong>{reviewed} / {tasks.length}</strong> kontroli wykonanych</span><div className="review-meter" aria-hidden="true"><span style={{ width: `${reviewed / tasks.length * 100}%` }} /></div></div>}</div>
+          <div className="checklist-content">
+            {!parts.length && <p className="empty-note">Wczytane elementy pojawią się tutaj.</p>}
+            {parts.map(part => <section className="check-part" key={part.id} id={`check-${part.id}`}>
+              <div className="check-part-heading"><strong title={part.name}>{part.name}{duplicateName(part)}</strong></div>
+              <div className="part-checks">
+                {!tasks.some(task => task.part_id === part.id) && <p className="no-checks">Nie uruchomiono kontroli.</p>}
+                {tasks.filter(task => task.part_id === part.id).map(task => <div className="check-task" key={task.id}>
+                  <p className={task.stale || task.result === 'UNCERTAIN' ? 'task-warning' : ''}>{taskResult(task)}</p>
+                  <div className="task-line"><label><input type="checkbox" aria-label={`Intersekcje: ${part.name} — sprawdzone`} checked={task.done} disabled={busy || task.stale} onChange={event => void reviewTask(task, event.target.checked, task.note)} />Intersekcje sprawdzone</label><button className="text-button" aria-label={`Szczegóły kontroli ${part.name}`} onClick={() => setActiveTaskId(task.id)}>Szczegóły</button></div>
+                </div>)}
+              </div>
+            </section>)}
+          </div>
+          {activeTask && activeTaskPart && <TaskCard task={activeTask} part={activeTaskPart} disabled={!!busy} onReview={(done, note) => void reviewTask(activeTask, done, note)} onClose={() => setActiveTaskId(null)} />}
+        </section>
       </aside>
     </main>
 
@@ -333,6 +338,6 @@ export default function App() {
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onActivate={() => { setSelection(previous => ({ ...previous, activeId: objectMenu.id })); setObjectMenu(null); }} onDelete={() => void removePart(objectMenu.id)} />}
     {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{error}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => setError('')}><X size={20} /></button></div>}
     {dragging && <div className="drop-overlay"><h2>Upuść pliki STL</h2><p>Każdy plik to osobny element modelu.</p></div>}
-    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Kliknięcie pary pokazuje ją w 3D. Odhaczasz wyłącznie uruchomione kontrole; ich szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Przycisk „Podłoga” nad widokiem 3D ukrywa siatkę i osie. Nie zmienia położenia ani wyników analizy modelu.</p><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>LPM zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
+    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Zakładka „Powiązania” pokaże listę par bez zaznaczania części w 3D.</li><li>Kliknij <strong>Sprawdź intersekcje</strong>. Powstaną zadania do ręcznego odhaczenia przy każdym elemencie. Przełącznik <strong>Pokaż intersekcje</strong> zmienia tylko widoczność wyniku.</li><li>Powiązania są informacyjne. Przycisk „Pokaż parę” dopasowuje tylko kamerę, bez zaznaczania i ukrywania części. Obie części muszą być widoczne. W osobnej zakładce „Kontrole” odhaczasz uruchomione kontrole; szczegóły zawierają notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Przycisk „Podłoga” nad widokiem 3D ukrywa siatkę i osie. Nie zmienia położenia ani wyników analizy modelu.</p><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>LPM zaznacza części. PPM na lewej liście otwiera menu. Polecenie „Aktywuj” aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
   </div>;
 }

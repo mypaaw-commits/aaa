@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.7
+# ModelCheck 3D — prototyp 0.8
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.7 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.8 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.7**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.8**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
 
@@ -34,9 +34,9 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 ## Jak sprawdzić model
 
 1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Zachowujemy ich współrzędne i skalę; 1 jednostka STL = 1 mm.
-2. **Sprawdź powiązania** — program informuje, które części bezpośrednio się łączą. Lista „Powiązany z” jest wyłącznie informacyjna: nie ma ocen OK, notatek do par ani obowiązku odhaczania połączeń. Kliknięcie pary pozwala obejrzeć ją w izolacji. Wszystkie wczytane elementy pozostają na liście, również bez połączeń.
-3. **Sprawdź intersekcje** — uruchamia konkretną kontrolę. Dopiero wtedy przy każdym elemencie pojawia się zadanie **Intersekcje sprawdzone**. Wynik mówi o wykrytych intersekcjach, ich braku lub niepewności. Żadne zadanie nie odhacza się automatycznie.
-4. Po ręcznej kontroli elementu odhacz jego zadanie. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
+2. **Sprawdź powiązania** — program informuje, które części bezpośrednio się łączą. Zakładka **Powiązania** zawiera każdą parę raz. Lista jest informacyjna i nie zmienia zaznaczenia, kolorów, widoczności ani kamery. Osobny przycisk **Pokaż parę** dopasowuje wyłącznie kamerę; obie części muszą być widoczne, inaczej przycisk jest niedostępny. Powiązania nie mają ocen, notatek ani odhaczeń.
+3. **Sprawdź intersekcje** — uruchamia konkretną kontrolę. Otwiera osobną zakładkę **Kontrole**, w której zawsze są wszystkie wczytane elementy. Dopiero po uruchomieniu kontroli przy każdym elemencie pojawia się zadanie **Intersekcje sprawdzone**. Wynik mówi o wykrytych intersekcjach, ich braku lub niepewności. Żadne zadanie nie odhacza się automatycznie.
+4. Po ręcznej kontroli elementu odhacz jego zadanie. Przeglądanie kontroli, odhaczanie i notatki nie zmieniają widoku 3D ani zaznaczenia. Zakładki można przełączać myszą lub strzałkami klawiatury. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
 5. **Pokaż intersekcje** zmienia tylko widoczność wyników już uruchomionej kontroli. Czerwona, matowa geometria pokazuje wspólną objętość. Otaczające części są przezroczyste, by odsłonić wnętrze. Samo przełączanie widoczności nie tworzy dodatkowych zadań.
 6. **Pokaż cały model** przywraca wszystkie części i dopasowuje kamerę do całości.
 
@@ -45,6 +45,8 @@ Oba polecenia analizy obejmują zawsze cały model, również ukryte części. Z
 Ponowne uruchomienie kontroli na niezmienionych danych zachowuje odhaczenia i notatki. Dodanie lub usunięcie części oznacza wcześniejsze zadania jako **nieaktualne**, usuwa ich odhaczenia i blokuje ponowne odhaczanie do czasu uruchomienia kontroli. Notatki istniejących elementów pozostają. Nowy element otrzyma zadanie dopiero po uruchomieniu kontroli.
 
 W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, B–C mają intersekcję, A i C są rozdzielone.
+
+![Osobna zakładka powiązań: jedna pozycja na parę i jawny przycisk dopasowania kamery](docs/relations.png)
 
 ## Menu obiektu i kolory
 
@@ -63,7 +65,7 @@ Lewy przycisk zaznacza, Shift + klik dodaje lub odejmuje części. Nie aktywuje 
 | Nieaktywny i zaznaczony | Przygaszony zielony |
 | Aktywny | Beżowy |
 
-W wersji 0.7 kolory są nieco jaśniejsze. Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
+Kolory są nieco jaśniejsze niż w wersji 0.6. Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
 
 ![Jaśniejsze, matowe kolory elementów i uporządkowane panele](docs/selection.png)
 
@@ -71,7 +73,7 @@ W wersji 0.7 kolory są nieco jaśniejsze. Materiały mają maksymalną chropowa
 
 Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
 
-Interfejs 0.7 ma jaśniejsze panele, większe odstępy i spokojniejsze obramowania. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na listach, a checklista pokazuje również pasek postępu ręcznego sprawdzania.
+Interfejs 0.8 ma jaśniejsze panele, większe odstępy i spokojniejsze obramowania. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
 
 ## Sterowanie
 

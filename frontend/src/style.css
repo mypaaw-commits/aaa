@@ -98,23 +98,13 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
 .checklist-content { flex: 1; min-height: 80px; overflow: auto; }
 .check-part { border-bottom: 1px solid #c8cdd1; }
 .check-part-heading { width: 100%; display: flex; align-items: center; gap: 8px; padding: 11px 12px; text-align: left; background: #e8eaec; border-left: 3px solid transparent; }
-.check-part-heading:hover { background: #dfe3e6; }
 .check-part-heading > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 600; }
-.check-part.highlight .check-part-heading { background: #d6e0cf; border-left-color: #78916a; }
-.check-part.active-part .check-part-heading { background: #e3dacb; border-left-color: #aa9674; }
-.check-part-relations { padding: 2px 12px 9px 20px; background: #f6f7f7; }
-.relation-list-label { color: #727b83; font-size: 11px; padding: 8px 4px 4px; }
-.relation-row { width: 100%; padding: 8px 5px; border: 1px solid transparent; border-bottom-color: #e0e3e5; text-align: left; border-radius: 3px; }
+.relation-row { padding: 14px 12px; border-bottom: 1px solid #d4d9dd; }
 .relation-row:last-child { border-bottom-color: transparent; }
-.relation-row:hover { background: #e6eaed; }
-.relation-row.active { background: #dce5ec; border-color: #bacad7; }
-.relation-title { display: flex; align-items: baseline; gap: 7px; }
-.relation-title > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 400; }
+.relation-row.active { background: #e5ebef; }
 .relation-kind { font-size: 12px; color: #626262; flex-shrink: 0; }
 .relation-kind.intersection { color: #a52525; font-weight: 600; }
 .relation-kind.uncertain { color: #865b16; }
-.no-relations, .partial-analysis { font-size: 12px; line-height: 1.6; color: #666; padding: 8px 5px; }
-.partial-analysis { color: #7b622c; }
 .review-card { padding: 14px; border-top: 1px solid #aeb6bc; background: #f6f7f7; max-height: 48%; overflow: auto; flex-shrink: 0; }
 .review-heading { display: flex; align-items: center; justify-content: space-between; }
 .review-heading h3 { font-size: 14px; font-weight: 600; }
@@ -160,7 +150,7 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
   .welcome p { margin-bottom: 12px; }
 }
 
-.check-task { padding: 10px 5px 3px; margin-top: 9px; border-top: 1px solid #d4d9dd; }
+.check-task { padding: 0; }
 .task-line { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
 .task-line label, .task-confirm { display: flex; align-items: center; gap: 7px; font-size: 13px; }
 .check-task p { font-size: 12px; color: #5d5d5d; line-height: 1.6; margin-top: 4px; }
@@ -180,3 +170,18 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
 .review-meter { height: 4px; margin-top: 8px; background: #dde2e5; border-radius: 2px; overflow: hidden; }
 .review-meter > span { display: block; height: 100%; background: #7a906b; }
 @media (max-width: 1300px) { .viewport-toolbar .scene-label { flex-basis: 100%; } .exit-isolation { top: 84px; } }
+
+.result-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid #bdc4ca; background: #e5e7e9; padding: 0 10px; gap: 6px; }
+.result-tabs [role=tab] { padding: 13px 12px 11px; border-bottom: 3px solid transparent; color: #636c73; }
+.result-tabs [role=tab][aria-selected=true] { color: #252c31; border-bottom-color: #596b78; font-weight: 600; }
+.result-tabs [role=tab]:hover { background: #edf0f2; }
+.result-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.result-panel[hidden] { display: none; }
+.pair-names { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.5; }
+.pair-names > span:not(.pair-connector) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pair-connector { color: #89939b; }
+.pair-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.pair-actions .button { font-size: 12px; min-height: 28px; padding: 4px 8px; }
+.part-checks { padding: 0 14px 12px; background: #f6f7f7; }
+.no-checks { font-size: 12px; color: #79828a; padding-top: 10px; }
+.check-task p { margin-top: 0; padding: 9px 0; }
