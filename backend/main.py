@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.4.0')
+app = FastAPI(title='ModelCheck 3D', version='0.5.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -22,7 +22,6 @@ LIMIT = 100 * 1024 * 1024
 
 
 class AnalysisRequest(BaseModel):
-    part_ids: list[str] | None = None
     model_config = ConfigDict(extra='forbid')
 
 
@@ -175,11 +174,9 @@ def run_analysis(session, ids, job):
 def start_analysis(sid: str, request: AnalysisRequest):
     with lock:
         session = session_for(sid); idle(session)
-        ids = sorted(session['parts']) if request.part_ids is None else sorted(set(request.part_ids))
+        ids = sorted(session['parts'])
         if len(ids) < 2:
-            raise HTTPException(400, 'Wybierz co najmniej dwie części.')
-        if any(pid not in session['parts'] for pid in ids):
-            raise HTTPException(404, 'Jedna z części nie istnieje.')
+            raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
         job = {'id': uuid4().hex, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
                'seconds': 0, '_start': time.monotonic(), 'error': None}

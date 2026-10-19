@@ -39,13 +39,13 @@ def test_demo_analysis_review_isolation_and_delete():
     data = client.get(path + '/intersection')
     mesh = trimesh.load(io.BytesIO(data.content), file_type='stl')
     assert mesh.volume == pytest.approx(32)
-    selected = analyze(sid, {'part_ids': [parts[1]['id'], parts[2]['id']]})
-    assert selected['job']['total'] == 1
-    row = next(row for row in selected['relations'] if row['id'] == intersection['id'])
+    reanalyzed = analyze(sid)
+    assert reanalyzed['job']['total'] == 3
+    row = next(row for row in reanalyzed['relations'] if row['id'] == intersection['id'])
     assert row['note'] == 'Zmniejszyć przenikanie'
     assert row['status'] == 'FIX'
-    # Results of unrelated pairs are retained; each still has a single shared status.
-    assert len(selected['relations']) == 3
+    # A full re-analysis retains one shared review record for each unique pair.
+    assert len(reanalyzed['relations']) == 3
     assert client.delete(f"/api/sessions/{sid}/parts/{parts[2]['id']}").status_code == 200
     assert len(client.get(f'/api/sessions/{sid}/analysis').json()['relations']) == 1
 
@@ -69,7 +69,7 @@ def test_invalid_selection_and_removed_analysis_setting():
     sid = session()
     assert client.post(f'/api/sessions/{sid}/analysis', json={}).status_code == 400
     assert client.post(f'/api/sessions/{sid}/analysis', json={'gap': -1}).status_code == 422
-    assert client.post(f'/api/sessions/{sid}/analysis', json={'part_ids': ['unknown', 'other']}).status_code == 404
+    assert client.post(f'/api/sessions/{sid}/analysis', json={'part_ids': ['unknown', 'other']}).status_code == 422
     assert client.get('/api/sessions/missing/analysis').status_code == 404
 
 

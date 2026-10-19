@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.4
+# ModelCheck 3D — prototyp 0.5
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.4 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.5 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.4**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.5**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
 
@@ -32,30 +32,28 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 ## Jak sprawdzić model
 
 1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Po lewej zobaczysz wszystkie elementy, pośrodku złożony model. Pliki zachowują swoje współrzędne i skalę. Przyjmujemy 1 jednostkę STL = 1 mm.
-2. **Sprawdź powiązania** — wybierz zakres **Cały model** albo **Zaznaczone**. Pierwszy obejmuje również ukryte części. Drugi porównuje zaznaczone elementy wyłącznie między sobą.
+2. **Sprawdź powiązania** — analiza zawsze sprawdza wszystkie wczytane części, również ukryte. Nie ma wyboru zakresu ani analizy samych zaznaczonych elementów.
 3. **Powiązania i checklista** — przy każdym elemencie znajdziesz listę „Powiązany z”. Powiązanie oznacza bezpośrednie dotykanie się części lub ich przenikanie. Element bez powiązań też pozostaje na checkliście. Samo bliskie położenie oddzielonych części nie tworzy powiązania.
-4. **Pokaż intersekcje** — włącz, gdy chcesz obejrzeć czerwone regiony przenikania. Domyślnie są wyłączone. Podświetlamy wspólną objętość, a nie całe części. Otaczające elementy stają się przezroczyste, aby odsłonić wewnętrzne obszary. W zakresie „Zaznaczone” pokazywane są tylko wyniki dla wybranych części.
+4. **Pokaż intersekcje** — włącz, gdy chcesz obejrzeć czerwone regiony przenikania. Domyślnie są wyłączone. Podświetlamy wspólną objętość, a nie całe części. Otaczające elementy stają się przezroczyste, aby odsłonić wewnętrzne obszary. Zaznaczenie nie ogranicza wyników intersekcji; podświetlane są wyniki dla wszystkich widocznych części.
 5. **Wybierz parę na checkliście** — pozostałe części zostaną ukryte, a kamera dopasowana do tej pary. Wybierz ręcznie **Do sprawdzenia / OK / Wymaga poprawki** i dodaj notatkę. Zmiana notatki jest stosowana po wyjściu z pola. Status i notatka są wspólne dla obu elementów; wynik analizy nie ustawia automatycznie „OK”.
 6. **Usuń element** — kliknij jego wiersz na liście obiektów prawym przyciskiem i wybierz **Usuń**. Przy nazwie pozostaje tylko oczko widoczności. Menu można też otworzyć klawiszami Shift+F10; Escape lub kliknięcie poza menu zamyka je bez usuwania. Usunięcie dotyczy wskazanego elementu, także gdy zaznaczonych jest kilka części. W czasie przetwarzania polecenie jest niedostępne.
 7. **Pokaż cały model** — przywróć wszystkie części. Wybór elementu na liście lub w 3D odsłania jego pozycję na checkliście. Nazwy powiązanych części są sortowane alfabetycznie z uwzględnieniem numerów.
 
-Analiza podzbioru aktualizuje tylko jego pary. Pozostałe wyniki i ręczne oceny pozostają; niesprawdzone pary są wyraźnie oznaczone jako nieprzeanalizowane. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
+Każda analiza sprawdza wszystkie unikalne pary. Przy niezmienionych plikach zachowuje ręczne oceny i notatki. Zaznaczanie, aktywacja i izolacja zmieniają wyłącznie obsługę widoku, a nie zakres analizy. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
 
 W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, a B i C mają też intersekcję. A i C są rozdzielone. Możesz od razu użyć własnych STL.
 
-## Kolory elementów
+## Zaznaczanie i aktywacja
 
-| Stan | Kolor |
-| --- | --- |
-| Niezaznaczony i nieaktywny | Szary |
-| Zaznaczony, ale nieaktywny | Zielony |
-| Aktywny | Beżowy |
+**Viewport 3D i checklista:** nieaktywne i niezaznaczone części są szare, nieaktywne zaznaczone są zielone, aktywna część jest beżowa. Lewy przycisk zaznacza; Shift + klik dodaje lub odejmuje części. Kliknięcie modelu w 3D nie aktywuje obiektu na liście.
 
-Aktywny jest ostatnio wskazany element. Należy do zaznaczenia; pozostałe zaznaczone części są zielone. Shift + klik dodaje lub usuwa element z zaznaczenia. Jeśli odznaczysz lub usuniesz aktywną część, inna zaznaczona część staje się aktywna. Odznaczenie wszystkich pozostawia cały model szary.
+**Lista obiektów po lewej:** prawy przycisk ustawia aktywny obiekt i otwiera menu „Usuń”. Aktywny wiersz i model 3D tego obiektu są beżowe. Samo aktywowanie nie dodaje ani nie usuwa części z zaznaczenia. Lewy przycisk na liście zaznacza na zielono, ale nie zmienia aktywnego obiektu. Shift+F10 jest klawiaturowym odpowiednikiem prawego przycisku.
 
-Te same kolory obowiązują w widoku 3D, na liście obiektów i przy elementach checklisty. Intersekcje są nadal czerwone i widoczne tylko po włączeniu podświetlenia.
+Aktywny obiekt pozostaje aktywny do wskazania innego prawym przyciskiem lub usunięcia. Odznaczenie wszystkich nie zmienia aktywnego obiektu. Usunięcie aktywnego obiektu nie aktywuje automatycznie kolejnego. Kliknięcie aktywnego modelu lewym przyciskiem nie usuwa jego aktywacji — pozostaje beżowy.
 
-![Szary element niezaznaczony, zielony zaznaczony i beżowy aktywny](docs/selection.png)
+Intersekcje nadal są czerwone i pojawiają się po włączeniu „Pokaż intersekcje”.
+
+![Zielone zaznaczenie i beżowy obiekt aktywowany prawym przyciskiem](docs/selection.png)
 
 ## Sterowanie
 
@@ -67,7 +65,7 @@ Te same kolory obowiązują w widoku 3D, na liście obiektów i przy elementach 
 | Klik w model lub nazwę | Wybór elementu |
 | Shift / Ctrl + klik | Wiele elementów |
 | Ikona oka | Ukrywanie i pokazywanie części |
-| Prawy przycisk na elemencie → Usuń | Usunięcie elementu z bieżącego modelu |
+| Prawy przycisk na liście | Aktywacja obiektu i menu „Usuń” |
 | Izoluj wybrane | Widok samych zaznaczonych części |
 | Dopasuj widok / dwuklik | Dopasowanie kamery |
 
@@ -115,4 +113,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, wspólne oceny par i zakres sprawdzania.
+Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, wspólne oceny par, niezależną aktywację oraz analizę całego modelu.

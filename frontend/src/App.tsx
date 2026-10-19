@@ -38,7 +38,6 @@ export default function App() {
   const activePartId = selection.activeId;
   const [isolated, setIsolated] = useState<string[] | null>(null);
   const [activePair, setActivePair] = useState<string | null>(null);
-  const [scope, setScope] = useState<'all' | 'selected'>('all');
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(0);
@@ -58,7 +57,6 @@ export default function App() {
   const relevant = relations.filter(relation => relation.kind !== 'DISCONNECTED');
   const reviewed = relevant.filter(relation => relation.status !== 'TODO').length;
   const active = relations.find(relation => relation.id === activePair);
-  const overlayRelations = scope === 'all' ? relations : relations.filter(relation => relation.part_ids.every(id => selected.includes(id)));
 
   useEffect(() => {
     api<{ id: string }>('/sessions', { method: 'POST' }).then(result => setSession(result.id)).catch(err => setError(err.message));
@@ -128,7 +126,7 @@ export default function App() {
     setLoading(true); setError(''); setNotice('');
     try {
       await reviewQueue.current;
-      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part_ids: scope === 'selected' ? selected : null }) });
+      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       // Always poll once: a small model can finish before POST returns.
       setJob({ ...result, state: 'running' });
     } catch (err) { setError((err as Error).message); }
@@ -136,19 +134,17 @@ export default function App() {
   }
   function select(id: string | null, multi: boolean) {
     setActivePair(null);
-    if (!id) { if (!multi) setSelection({ ids: [], activeId: null }); return; }
+    if (!id) { if (!multi) setSelection(previous => ({ ...previous, ids: [] })); return; }
     if (isolated && !isolated.includes(id)) setIsolated(null);
     setExpanded(previous => new Set([...previous, id]));
     requestAnimationFrame(() => document.getElementById(`check-${id}`)?.scrollIntoView({ block: 'nearest' }));
     setSelection(previous => {
-      if (!multi) return { ids: [id], activeId: id };
-      if (!previous.ids.includes(id)) return { ids: [...previous.ids, id], activeId: id };
-      const ids = previous.ids.filter(item => item !== id);
-      return { ids, activeId: previous.activeId === id ? ids.at(-1) ?? null : previous.activeId };
+      const ids = !multi ? [id] : previous.ids.includes(id) ? previous.ids.filter(item => item !== id) : [...previous.ids, id];
+      return { ...previous, ids };
     });
   }
-  function focusPair(relation: Relation, clickedId: string) {
-    setActivePair(relation.id); setSelection({ ids: relation.part_ids, activeId: clickedId }); setIsolated(relation.part_ids);
+  function focusPair(relation: Relation) {
+    setActivePair(relation.id); setSelection(previous => ({ ...previous, ids: relation.part_ids })); setIsolated(relation.part_ids);
     setParts(previous => previous.map(part => relation.part_ids.includes(part.id) ? { ...part, visible: true } : part));
     requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
   }
@@ -164,7 +160,7 @@ export default function App() {
       setRelations(previous => previous.filter(relation => !relation.part_ids.includes(id)));
       setSelection(previous => {
         const ids = previous.ids.filter(pid => pid !== id);
-        return { ids, activeId: previous.activeId === id ? ids.at(-1) ?? null : previous.activeId };
+        return { ids, activeId: previous.activeId === id ? null : previous.activeId };
       });
       setIsolated(null); setActivePair(null); setLoaded(previous => Math.max(0, previous - 1));
       setNotice('Usunięto element z modelu.');
@@ -202,7 +198,7 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><strong>ModelCheck 3D</strong><span className="app-version">0.4</span></div>
+      <div className="brand"><strong>ModelCheck 3D</strong><span className="app-version">0.5</span></div>
       <div className="header-actions">
         <button className="button secondary help-button" onClick={() => setHelp(true)}>Pomoc</button>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wczytaj STL</button>
@@ -213,7 +209,7 @@ export default function App() {
       <aside className="objects panel" aria-label="Lista elementów">
         <div className="panel-heading"><h2>Obiekty</h2><span className="count">{parts.length}</span></div>
         <label className="panel-search"><Search size={17} /><input aria-label="Szukaj elementu" placeholder="Szukaj elementu…" value={search} onChange={event => setSearch(event.target.value)} /></label>
-        <p className="selection-hint">Shift + klik — zaznacz kilka obiektów.</p>
+        <p className="selection-hint">LPM: zaznacz. PPM: aktywuj i otwórz menu.</p>
         <div className="object-list">
           {!parts.length && <p className="empty-note">Wczytane pliki STL pojawią się tutaj.</p>}
           {parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase())).map(part => {
@@ -221,12 +217,14 @@ export default function App() {
             return <div key={part.id} className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${activePartId === part.id ? 'active-part' : ''} ${!visible ? 'muted' : ''}`} data-selection={activePartId === part.id ? 'active' : selected.includes(part.id) ? 'selected' : 'idle'}
               onContextMenu={event => {
                 event.preventDefault();
+                setSelection(previous => ({ ...previous, activeId: part.id }));
                 setObjectMenu({ id: part.id, x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') });
               }}
               onKeyDown={event => {
                 if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
                   event.preventDefault();
                   const bounds = event.currentTarget.getBoundingClientRect();
+                  setSelection(previous => ({ ...previous, activeId: part.id }));
                   setObjectMenu({ id: part.id, x: bounds.left + 20, y: bounds.bottom, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') });
                 }
               }}>
@@ -242,18 +240,17 @@ export default function App() {
         </div>
         <div className="selection-tools">
           <p className="active-object" title={parts.find(part => part.id === activePartId)?.name}>Aktywny: {parts.find(part => part.id === activePartId)?.name ?? '—'}</p>
-          <div className="selection-summary"><strong>Zaznaczone: {selected.length}</strong><button className="text-button" disabled={!parts.length} onClick={() => setSelection(previous => ({ ids: parts.map(part => part.id), activeId: previous.activeId ?? parts.at(-1)?.id ?? null }))}>Zaznacz wszystkie</button></div>
+          <div className="selection-summary"><strong>Zaznaczone: {selected.length}</strong><button className="text-button" disabled={!parts.length} onClick={() => setSelection(previous => ({ ...previous, ids: parts.map(part => part.id) }))}>Zaznacz wszystkie</button></div>
           <button className="button secondary wide" disabled={!selected.length} onClick={fitSelected}><Focus size={18} />Izoluj wybrane</button>
           <button className="button secondary wide" disabled={!parts.length} onClick={showAll}><Eye size={18} />Pokaż cały model</button>
-          {selected.length > 0 && <button className="text-button wide" onClick={() => { setSelection({ ids: [], activeId: null }); setActivePair(null); }}>Odznacz wszystkie</button>}
+          {selected.length > 0 && <button className="text-button wide" onClick={() => { setSelection(previous => ({ ...previous, ids: [] })); setActivePair(null); }}>Odznacz wszystkie</button>}
         </div>
       </aside>
 
       <section className="center" aria-label="Analiza i widok 3D">
         <section className="analysis-panel">
           <div className="analysis-controls">
-            <label className="scope-control"><span>Zakres:</span><select aria-label="Zakres sprawdzania" value={scope} disabled={busy} onChange={event => setScope(event.target.value as 'all' | 'selected')}><option value="all">Cały model</option><option value="selected">Zaznaczone ({selected.length})</option></select></label>
-            <button className="button primary analyze-button" disabled={busy || !session || (scope === 'all' ? parts.length : selected.length) < 2} onClick={() => void analyze()}>{busy && <LoaderCircle size={16} className="spin" />}{job?.state === 'running' ? 'Sprawdzanie…' : 'Sprawdź powiązania'}</button>
+            <button className="button primary analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{busy && <LoaderCircle size={16} className="spin" />}{job?.state === 'running' ? 'Sprawdzanie…' : 'Sprawdź powiązania'}</button><span className="analysis-scope-note">Cały model, także ukryte obiekty</span>
           </div>
           <div className="analysis-result">
             <label className={`intersection-toggle ${intersections ? 'enabled' : ''}`}><input type="checkbox" checked={intersections} disabled={!parts.length} onChange={event => setIntersections(event.target.checked)} /><span>Pokaż intersekcje</span></label>
@@ -263,7 +260,7 @@ export default function App() {
         </section>
 
         <div className="viewport">
-          <Viewer ref={viewer} session={session} parts={parts} relations={overlayRelations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections} onSelect={select} onError={setError} onLoaded={setLoaded} />
+          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections} onSelect={select} onError={setError} onLoaded={setLoaded} />
           <div className="scene-label"><Box size={17} /><strong>{isolated ? 'Wybrane elementy' : 'Cały model'}</strong><span>Widoczne: {parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length}/{parts.length}</span></div>
           <div className="view-controls"><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
           {!parts.length && <div className="welcome"><h1>Brak modelu</h1><p>Wczytaj pliki STL lub przeciągnij je do okna.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wybierz pliki STL</button><button className="text-button" disabled={busy || !session} onClick={() => void demo()}>Wypróbuj przykład A / B / C</button></div>}
@@ -293,7 +290,7 @@ export default function App() {
                 {rows.length > 0 && <p className="relation-list-label">{rows.some(row => row.kind === 'UNCERTAIN') ? 'Powiązania i pary do weryfikacji:' : 'Powiązany z:'}</p>}
                 {rows.map(row => {
                   const other = parts.find(item => item.id === row.part_ids.find(id => id !== part.id));
-                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row, other?.id ?? row.part_ids[1])}>
+                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row)}>
                     <div className="relation-title"><strong title={other?.name}>{other?.name}{other ? duplicateName(other) : ''}</strong><span className={`relation-kind ${row.kind.toLowerCase()}`}>{labels[row.kind]}</span></div>
                     <div className={`review-status ${row.status.toLowerCase()}`}>{row.status === 'OK' ? <Check size={15} /> : row.status === 'FIX' ? <TriangleAlert size={15} /> : <span className="status-circle" />}{statusLabel[row.status]}<ChevronRight size={16} /></div>
                   </button>;
@@ -312,6 +309,6 @@ export default function App() {
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onDelete={() => void removePart(objectMenu.id)} />}
     {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{error}</span><button className="icon-button" title="Zamknij komunikat" onClick={() => setError('')}><X size={20} /></button></div>}
     {dragging && <div className="drop-overlay"><h2>Upuść pliki STL</h2><p>Każdy plik to osobny element modelu.</p></div>}
-    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Włącz <strong>Pokaż intersekcje</strong>, aby zobaczyć na czerwono miejsca przenikania.</li><li>Kliknij powiązaną część na checkliście. Obejrzysz parę w 3D, wybierzesz ocenę i dodasz notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Analiza całego modelu obejmuje także ukryte części. Wybrany zakres porównuje tylko zaznaczone części między sobą.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
+    {help && <div className="modal-backdrop" onClick={() => setHelp(false)}><section className="help-dialog" role="dialog" aria-modal="true" aria-label="Jak obsługiwać aplikację" onClick={event => event.stopPropagation()}><button className="icon-button close-modal" title="Zamknij pomoc" onClick={() => setHelp(false)}><X size={22} /></button><h2>Jak sprawdzić model?</h2><ol><li>Wczytaj osobne pliki STL. Elementy pozostają w oryginalnym położeniu.</li><li>Kliknij <strong>Sprawdź powiązania</strong>. Lista po prawej pokaże, które części są ze sobą powiązane.</li><li>Włącz <strong>Pokaż intersekcje</strong>, aby zobaczyć na czerwono miejsca przenikania.</li><li>Kliknij powiązaną część na checkliście. Obejrzysz parę w 3D, wybierzesz ocenę i dodasz notatkę.</li></ol><h3>Sterowanie jak w Blenderze</h3><dl><dt>Środkowy przycisk myszy</dt><dd>Obrót</dd><dt>Shift + środkowy przycisk</dt><dd>Przesuwanie</dd><dt>Kółko</dt><dd>Zoom</dd><dt>Shift + klik</dt><dd>Wybór wielu części</dd></dl><p>Analiza zawsze obejmuje wszystkie wczytane części, także ukryte. Zaznaczenie i izolacja zmieniają tylko widok.</p><p>LPM zaznacza części. PPM na lewej liście aktywuje obiekt i oznacza go beżowo także w 3D. Inne zaznaczone części są zielone, pozostałe szare.</p><p>Powiązanie oznacza, że części bezpośrednio się łączą. Intersekcja oznacza, że jedna część wchodzi w drugą. O poprawności decydujesz sam.</p><div className="help-note"><CircleAlert size={20} /><span>Pracujemy w milimetrach. Odświeżenie strony usuwa bieżącą sesję; zapis projektu nie jest jeszcze dostępny.</span></div><button className="button primary wide" onClick={() => setHelp(false)}>Rozumiem</button></section></div>}
   </div>;
 }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('model ABC: render, analyze, inspect, review and scope', async ({ page }, testInfo) => {
+test('model ABC: full analysis and independent viewport selection and list activation', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -45,10 +45,15 @@ test('model ABC: render, analyze, inspect, review and scope', async ({ page }, t
   await a.locator('.object-select').click();
   await b.locator('.object-select').click({ modifiers: ['Shift'] });
   await expect(a).toHaveAttribute('data-selection', 'selected');
-  await expect(b).toHaveAttribute('data-selection', 'active');
+  await expect(b).toHaveAttribute('data-selection', 'selected');
+  await expect(page.locator('.object-row[data-selection=active]')).toHaveCount(0);
+  await a.click({ button: 'right' });
+  await page.keyboard.press('Escape');
+  await expect(a).toHaveAttribute('data-selection', 'active');
+  await expect(b).toHaveAttribute('data-selection', 'selected');
   await expect(c).toHaveAttribute('data-selection', 'idle');
-  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(116, 172, 100)');
-  await expect(b.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(207, 185, 145)');
+  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(207, 185, 145)');
+  await expect(b.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(116, 172, 100)');
   await expect(c.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(155, 155, 155)');
   await page.screenshot({ path: testInfo.outputPath('selection.png') });
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
@@ -85,11 +90,27 @@ test('model ABC: render, analyze, inspect, review and scope', async ({ page }, t
   // Hidden A must still be included in the full analysis.
   await expect(page.locator('.statusbar')).toContainText('Sprawdzono par: 3');
   await expect(page.locator('.review-progress strong')).toHaveText('1 / 2');
-  await page.getByLabel('Zakres sprawdzania', { exact: true }).selectOption('selected');
+  await expect(page.getByLabel('Zakres sprawdzania', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
-  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 1');
+  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 3');
   await expect(page.locator('.relation-row')).toHaveCount(4);
   await expect(page.getByRole('checkbox')).toHaveCount(1);
+  // Even with only one selected element, the action still checks all three pairs.
+  await b.locator('.object-select').click();
+  await expect(a).toHaveAttribute('data-selection', 'active');
+  await expect(b).toHaveAttribute('data-selection', 'selected');
+  await expect(page.locator('.object-row.selected')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
+  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 3');
+  // A click on the actual 3D object selects it without changing the right-click activation.
+  await page.getByRole('button', { name: 'Izoluj wybrane' }).click();
+  await page.getByRole('button', { name: 'Odznacz wszystkie', exact: true }).click();
+  await expect(page.locator('.object-row.selected')).toHaveCount(0);
+  const objectCanvasBounds = (await canvas.boundingBox())!;
+  await canvas.click({ position: { x: objectCanvasBounds.width / 2, y: objectCanvasBounds.height / 2 } });
+  await expect(b.locator('.object-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(b).toHaveAttribute('data-selection', 'selected');
+  await expect(a).toHaveAttribute('data-selection', 'active');
   expect(errors).toEqual([]);
 });
 
@@ -118,10 +139,10 @@ test('separated parts are not proposed as related; all elements remain on checkl
   const left = page.locator('.object-row').filter({ hasText: 'left.stl' });
   const right = page.locator('.object-row').filter({ hasText: 'right.stl' });
   await expect(left).toHaveAttribute('data-selection', 'selected');
-  await expect(right).toHaveAttribute('data-selection', 'active');
+  await expect(right).toHaveAttribute('data-selection', 'selected');
   await left.locator('.object-select').click({ modifiers: ['Shift'] });
   await expect(left).toHaveAttribute('data-selection', 'idle');
-  await expect(right).toHaveAttribute('data-selection', 'active');
+  await expect(right).toHaveAttribute('data-selection', 'selected');
   await right.locator('.object-select').click({ modifiers: ['Shift'] });
   await expect(page.locator('.object-row[data-selection=active]')).toHaveCount(0);
   await expect(page.locator('.object-row[data-selection=idle]')).toHaveCount(3);
@@ -130,9 +151,9 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await page.getByRole('button', { name: 'Izoluj wybrane' }).click();
   await expect(page.locator('.scene-label')).toContainText('Widoczne: 2/3');
   await page.getByRole('button', { name: 'Pokaż cały model', exact: true }).click();
-  await page.getByLabel('Zakres sprawdzania', { exact: true }).selectOption('selected');
+  await expect(page.getByLabel('Zakres sprawdzania', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
-  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 1');
+  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 3');
   // The object list has a name and a visibility button only, with no inline delete action.
   await expect(page.locator('.object-row button')).toHaveCount(6);
   await expect(page.locator('.object-row').getByTitle(/^Usuń/)).toHaveCount(0);
@@ -159,12 +180,13 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.check-part')).toHaveCount(2);
-  await expect(right).toHaveAttribute('data-selection', 'active');
-  // Deleting the active object promotes another selected object; clearing leaves no active object.
+  await expect(right).toHaveAttribute('data-selection', 'selected');
+  // Only right-click activates; deleting the active object does not activate another one.
   await right.click({ button: 'right' });
   await page.getByRole('menu', { name: 'Opcje elementu right.stl' }).getByRole('menuitem', { name: 'Usuń', exact: true }).click();
   await expect(page.locator('.object-row')).toHaveCount(1);
-  await expect(left).toHaveAttribute('data-selection', 'active');
+  await expect(left).toHaveAttribute('data-selection', 'selected');
+  await expect(page.locator('.object-row[data-selection=active]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Odznacz wszystkie', exact: true }).click();
   await expect(left).toHaveAttribute('data-selection', 'idle');
 });
