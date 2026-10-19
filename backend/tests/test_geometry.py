@@ -25,6 +25,34 @@ def test_containment():
     result, region = analyze_pair(prepare(box(size=(8, 8, 8))), prepare(box()))
     assert result['kind'] == 'INTERSECTION'
     assert region.volume == pytest.approx(8)
+    assert result['coincident'] is False
+
+
+@pytest.mark.parametrize('subdivide', [False, True])
+def test_coincident_solids_independent_of_triangulation(subdivide):
+    original = box((150, -30, 12))
+    other = original.subdivide() if subdivide else original.copy()
+    result, region = analyze_pair(prepare(original), prepare(other))
+    assert result['kind'] == 'INTERSECTION'
+    assert result['coincident'] is True
+    assert region.volume == pytest.approx(8)
+
+
+@pytest.mark.parametrize('offset', [1e-7, 1e-5, .1])
+def test_near_copies_are_not_coincident(offset):
+    result, _ = analyze_pair(prepare(box()), prepare(box((offset, 0, 0))))
+    assert result['kind'] == 'INTERSECTION'
+    assert result['coincident'] is False
+
+
+def test_same_bounds_with_different_volume_is_not_coincident():
+    solid = box()
+    hollow = (prepare(solid).manifold - prepare(box(size=(1, 1, 1))).manifold).to_mesh64()
+    other = trimesh.Trimesh(vertices=hollow.vert_properties[:, :3], faces=hollow.tri_verts, process=False)
+    assert np.array_equal(solid.bounds, other.bounds)
+    result, _ = analyze_pair(prepare(solid), prepare(other))
+    assert result['kind'] == 'INTERSECTION'
+    assert result['coincident'] is False
 
 
 def test_multiple_regions():

@@ -43,7 +43,7 @@ def bounds_distance(a: Shape, b: Shape) -> float:
 
 def analyze_pair(a: Shape, b: Shape):
     """Returns metadata and optional exact Boolean intersection mesh."""
-    base = {'kind': 'UNCERTAIN', 'volume': None, 'message': ''}
+    base = {'kind': 'UNCERTAIN', 'volume': None, 'message': '', 'coincident': False}
     lower = bounds_distance(a, b)
     if lower > CONNECTION_EPS:
         return {**base, 'kind': 'DISCONNECTED', 'message': 'Elementy nie są ze sobą powiązane.'}, None
@@ -64,7 +64,17 @@ def analyze_pair(a: Shape, b: Shape):
                 return {**base, 'volume': volume, 'message': 'Przenikanie na granicy precyzji obliczeń.'}, None
             output = solid_common.to_mesh64()
             common = trimesh.Trimesh(vertices=output.vert_properties[:, :3], faces=output.tri_verts, process=False)
+            coincident = False
+            # Bounds are only a cheap candidate filter. Identity requires both
+            # Boolean differences to be empty, regardless of triangulation.
+            if np.allclose(a.mesh.bounds, b.mesh.bounds, atol=CONNECTION_EPS, rtol=0):
+                difference_a = a.manifold - b.manifold
+                difference_b = b.manifold - a.manifold
+                coincident = (difference_a.status() == manifold3d.Error.NoError
+                              and difference_b.status() == manifold3d.Error.NoError
+                              and difference_a.is_empty() and difference_b.is_empty())
             return {**base, 'kind': 'INTERSECTION', 'volume': volume,
+                    'coincident': bool(coincident),
                     'message': 'Elementy przenikają się. Włącz podświetlenie, aby zobaczyć wspólny obszar.'}, common
         # Surface proximity is only an internal test for a direct connection.
         # Separated parts are never proposed as related merely because they are near.

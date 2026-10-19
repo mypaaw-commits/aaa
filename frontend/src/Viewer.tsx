@@ -7,7 +7,7 @@ import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; isolated: string[] | null; intersections: boolean; floor: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; pairIds: string[]; coincidentPair: boolean; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
 type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
@@ -74,7 +74,10 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       if (box.isEmpty()) return;
       const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
       const max = Math.max(size.x, size.y, size.z, .01);
-      const distance = max / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov/2))) * 1.5 / Math.min(camera.aspect, 1);
+      const halfVertical = THREE.MathUtils.degToRad(camera.fov / 2);
+      const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
+      const radius = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, .005);
+      const distance = radius / Math.sin(Math.min(halfVertical, halfHorizontal)) * 1.12;
       const direction = camera.position.clone().sub(controls.target).normalize();
       controls.target.copy(center); camera.position.copy(center).addScaledVector(direction, distance);
       camera.near = Math.max(max / 10000, .00001); camera.far = Math.max(distance * 100, 1000);
@@ -160,11 +163,11 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   function applyMaterials() {
     const e = engine.current; if (!e) return;
     const current = latest.current;
-    const ghost = current.intersections;
+    const ghost = current.transparent;
     for (const part of current.parts) {
       const mesh = e.meshes.get(part.id); if (!mesh) continue;
       mesh.visible = part.visible && (!current.isolated || current.isolated.includes(part.id));
-      mesh.material.color.set(partColor(part.id, current.selected));
+      mesh.material.color.set(partColor(part.id, current.selected, current.pairIds, current.coincidentPair));
       mesh.material.emissive.set('#000000');
       mesh.material.emissiveIntensity = 0;
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .25 : 1;
@@ -172,7 +175,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     }
     e.invalidate();
   }
-  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.intersections]);
+  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.pairIds, props.coincidentPair, props.isolated, props.transparent]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -189,7 +192,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
             if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
             const geometry = loader.parse(await response.arrayBuffer());
             if (cancelled) { geometry.dispose(); return; }
-            const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#b34343', emissive: '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
+            const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: relation.coincident ? partColors.coincident : '#b34343', emissive: relation.coincident ? '#331a4d' : '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
             mesh.renderOrder = 5; e.overlays.add(mesh); e.invalidate();
           } catch (error) { if (!cancelled) latest.current.onError(error instanceof Error ? error.message : String(error)); }
         }

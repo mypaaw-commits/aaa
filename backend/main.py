@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.12.0')
+app = FastAPI(title='ModelCheck 3D', version='0.13.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -175,6 +175,7 @@ def run_analysis(session, ids, job):
             for pid in ids:
                 related = [row for row in results.values() if pid in row['part_ids']]
                 intersections = sum(row['kind'] == 'INTERSECTION' for row in related)
+                coincident = sum(row['coincident'] for row in related)
                 uncertain = sum(row['kind'] == 'UNCERTAIN' for row in related)
                 tid = f'INTERSECTIONS:{pid}'
                 previous = session['tasks'].get(tid, {})
@@ -182,7 +183,8 @@ def run_analysis(session, ids, job):
                               'done': previous.get('done', False) if not previous.get('stale') else False,
                               'note': previous.get('note', ''), 'stale': False,
                               'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'CLEAR',
-                              'intersections': intersections, 'uncertain_pairs': uncertain}
+                              'intersections': intersections, 'uncertain_pairs': uncertain,
+                              'coincident_pairs': coincident}
             session['tasks'].update(tasks)
         job['state'] = 'done'
     except Exception:

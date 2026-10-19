@@ -171,3 +171,15 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .note-button { color: #7d929f; }
 .selection-count { font-size: 11px; color: #697d8b; }
 .pending-check { border: 0; color: #9eacb6; font-size: 12px; }
+.pair-select { text-align: left; padding: 2px; border-radius: 3px; cursor: pointer; }
+.pair-select:hover { background: #f0f5f8; }
+.pair-actions { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
+.pair-zoom { width: 27px; height: 28px; }
+.pair-symbol.coincident, .pair-files .coincident-label, .review-status.has-coincident { color: #8760a5; }
+.pair-files .coincident-label { display: inline-block; font-size: 10px; background: #f0e9f6; border-radius: 3px; padding: 1px 5px; margin-top: 3px; }
+.view-controls .transparency-toggle[aria-pressed=true] { background: #567d89; border-color: #8faab4; color: #fff; }
+.viewport-legend { position: absolute; bottom: 12px; left: 14px; right: 14px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.viewport-legend .view-legend, .pair-color-legend { position: static; display: flex; flex-wrap: wrap; gap: 6px 15px; font-size: 11px; }
+.viewport-legend .view-legend > span, .pair-color-legend > span { display: inline-flex; gap: 6px; align-items: center; color: #d6e0e7; max-width: 240px; width: auto; height: auto; border-radius: 0; background: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewport-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; background: #b66d61; }
+.pair-files i { display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }

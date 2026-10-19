@@ -33,6 +33,10 @@ const en = {
   analysisFinished: 'Checked {count} pairs in {seconds} s', imported: 'Imported {count} objects',
   importing: 'Importing STL files…', removed: 'Object deleted', duplicates: 'Imported objects. Duplicate names have separate identifiers.',
   unknownError: 'The operation failed. Please try again.',
+  selectPair: 'Select pair: {a} / {b}', zoomPair: 'Zoom to pair: {a} / {b}', isolatePair: 'Isolate pair: {a} / {b}',
+  transparency: 'Transparency', transparencyTip: 'Toggle object transparency', coincident: 'Coincident',
+  coincidentCount: '{count} coincident', coincidentTip: 'Both objects occupy the same volume.',
+  isolatePairAction: 'Isolate',
 };
 const pl: Record<keyof typeof en, string> = {
   language: 'Język', import: 'Wczytaj STL', objects: 'Obiekty', objectList: 'Obiekty modelu',
@@ -66,6 +70,10 @@ const pl: Record<keyof typeof en, string> = {
   analysisFinished: 'Sprawdzono {count} par w {seconds} s', imported: 'Wczytano obiekty: {count}',
   importing: 'Wczytywanie plików STL…', removed: 'Usunięto obiekt', duplicates: 'Wczytano obiekty. Powtarzające się nazwy mają osobne identyfikatory.',
   unknownError: 'Operacja nie powiodła się. Spróbuj ponownie.',
+  selectPair: 'Zaznacz parę: {a} / {b}', zoomPair: 'Zbliż parę: {a} / {b}', isolatePair: 'Izoluj parę: {a} / {b}',
+  transparency: 'Przezroczystość', transparencyTip: 'Przełącz przezroczystość obiektów', coincident: 'Pełne pokrycie',
+  coincidentCount: 'Pełne pokrycie: {count}', coincidentTip: 'Oba obiekty zajmują tę samą objętość.',
+  isolatePairAction: 'Izoluj',
 };
 export type Language = 'en' | 'pl';
 export type TextKey = keyof typeof en;

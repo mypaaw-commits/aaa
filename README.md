@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.12
+# ModelCheck 3D — prototype 0.13
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.12**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.13**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -35,20 +35,28 @@ The prototype is tested on Linux. The Windows launch scripts and dependency inst
 
 - **Objects, left:** filenames and visibility controls. The bottom toolbar contains Search, Select all, Clear selection, Isolate selection and Show all. Search opens a small field above the toolbar. Hover an icon for its name.
 - **3D view, center:** import STL files, orbit the camera and show intersection geometry. Import preserves coordinates and scale: 1 STL unit = 1 mm.
-- **Results, right:** Connections and Checks tabs. Browsing results does not select or recolor objects.
+- **Results, right:** Connections and Checks tabs. Selecting a pair highlights both objects; switching tabs leaves selection unchanged.
 
-Object activation has been removed. Unselected objects are matte gray; selected objects are muted green. There is no separate beige state, activation command or tutorial overlay.
+Object activation has been removed. Unselected objects are matte gray; ordinary selections are muted green. A selected pair uses blue for its first object and amber for its second, with matching markers in the object list, pair row and 3D legend. Coincident pairs use purple. There is no separate beige state, activation command or tutorial overlay.
 
 ![Empty workspace](docs/empty-view.png)
 
 ## Connections and intersections
 
-**Find connections** computes informational links between directly connected parts. Every pair appears once. The Inspect button frames the pair without changing selection or hiding objects. Both objects must already be visible.
+**Find connections** computes informational links between directly connected parts. Every pair appears once. Click a pair to select and highlight both objects without moving the camera. The magnifier button selects and frames it. **Isolate**, with a separate box icon, selects, isolates and frames the pair. Objects in the chosen pair are made visible; other objects remain visible until isolation is requested.
+
+![Selected pair with matching object colors and separate connection actions](docs/selected-pair.png)
 
 **Check intersections** creates a review task for every imported object and opens the Checks tab:
 
-- **Intersections:** one row for each unique intersecting pair. Inspect isolates those two objects, enables the intersection overlay and frames them closely. Back to full model restores the complete view. Inspection never changes selection or marks a task reviewed.
+- **Intersections:** one row for each unique intersecting pair. Inspect isolates those two objects, enables the intersection overlay and frames them closely. Back to full model restores the complete view. Inspection selects the pair and applies its two colors, but never marks a task reviewed.
 - **Part checklist:** one compact row per object, with its result, manual review checkbox and optional notes. Results can be Clear, an intersection count, Needs review, or Out of date. Clear results are never checked automatically.
+
+**Coincident** identifies two valid solids that occupy the same volume. It is shown in purple in the pair list, part results and intersection overlay. Bounds only identify candidates: both Boolean differences must be empty. Different triangulations of the same solid are accepted; close copies, containment and matching bounds alone are insufficient. This remains an intersection requiring manual review.
+
+![Coincident solids shown in purple](docs/coincident.png)
+
+**Transparency** above the 3D view independently toggles object opacity. It works before analysis and remains separate from the intersection overlay; running a check does not turn transparency on.
 
 The intersection list and checklist scroll independently, so a long list of pairs does not push the checklist out of reach. Notes open only when requested using the speech-bubble icon.
 
@@ -96,8 +104,9 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 | Show all / Back to full model | Restore and frame all objects |
 | Frame all visible / double click in 3D | Frame visible objects |
 | Floor | Toggle the grid and axes |
+| Transparency | Toggle object transparency independently of results |
 
-Selection does not move the camera. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
+Ordinary selection and clicking a pair name do not move the camera. Pair framing and isolation explicitly change the view. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
 ## Analysis and limits
 

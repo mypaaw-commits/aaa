@@ -7,14 +7,14 @@ import { useI18n } from './i18n';
 import type { Part } from './types';
 
 type Props = {
-  parts: Part[]; selected: string[]; isolated: string[] | null;
+  parts: Part[]; selected: string[]; pairIds: string[]; coincidentPair: boolean; isolated: string[] | null;
   onChange: (ids: string[]) => void; onVisibility: (part: Part) => void;
   onMenu: (menu: ObjectMenuState) => void; nameSuffix: (part: Part) => string;
   onReorder: (id: string, target: string, before: boolean) => void;
 };
 type Drag = { x: number; y: number; startX: number; startY: number; clientX: number; clientY: number; base: string[]; ctrl: boolean; shift: boolean; moved: boolean };
 
-export function ObjectList({ parts, selected, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
+export function ObjectList({ parts, selected, pairIds, coincidentPair, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
   const { t } = useI18n();
   const list = useRef<HTMLDivElement>(null);
   const anchor = useRef<string | null>(null);
@@ -147,13 +147,14 @@ export function ObjectList({ parts, selected, isolated, onChange, onVisibility, 
           moving.current = null; setDrop(null);
         }}
         data-selection={selected.includes(part.id) ? 'selected' : 'idle'}
+        style={selected.includes(part.id) && pairIds.includes(part.id) ? { backgroundColor: partColor(part.id, selected, pairIds, coincidentPair) + '2c', borderLeftColor: partColor(part.id, selected, pairIds, coincidentPair) } : undefined}
         onClick={event => { if (event.target === event.currentTarget) { choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey); focusRow(part.id); } }}
         onContextMenu={event => { event.preventDefault(); setFocused(part.id); onMenu({ id: part.id, x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') }); }}>
         <button className="object-select" tabIndex={-1} draggable title={t('reorder')} aria-pressed={selected.includes(part.id)}
           onDragStart={event => { moving.current = part.id; event.dataTransfer.setData('application/x-modelcheck-part', part.id); event.dataTransfer.effectAllowed = 'move'; }}
           onDragEnd={() => { moving.current = null; setDrop(null); }}
           onClick={event => choose(part.id, event.ctrlKey || event.metaKey, event.shiftKey)} onFocus={() => setFocused(part.id)}>
-          <span className="part-swatch" style={{ background: partColor(part.id, selected) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
+          <span className="part-swatch" style={{ background: partColor(part.id, selected, pairIds, coincidentPair) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
           {!part.solid && <span className="warning-text" title={t('meshWarning')}>!</span>}
         </button>
         <button className="icon-button visibility-button" title={t(visible ? 'hide' : 'show', { name: part.name })} onClick={() => onVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>

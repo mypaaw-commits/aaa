@@ -83,6 +83,19 @@ def test_upload_preserves_coordinates_and_reports_invalid_files():
     assert np.allclose(loaded.bounds, mesh.bounds)
 
 
+def test_coincident_pairs_are_reported_and_remain_manual_intersection_checks():
+    sid = session()
+    data = trimesh.creation.box().export(file_type='stl')
+    response = client.post(f'/api/sessions/{sid}/parts', files=[('files', ('first.stl', data)), ('files', ('copy.stl', data))])
+    assert response.status_code == 200
+    result = analyze(sid)
+    assert result['relations'][0]['coincident'] is True
+    assert result['tasks'] == []
+    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    assert len(checked['tasks']) == 2
+    assert all(task['coincident_pairs'] == 1 and task['intersections'] == 1 and task['result'] == 'INTERSECTION' and not task['done'] for task in checked['tasks'])
+
+
 def test_invalid_selection_and_removed_analysis_setting():
     sid = session()
     assert client.post(f'/api/sessions/{sid}/analysis', json={}).status_code == 400
