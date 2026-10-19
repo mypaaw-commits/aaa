@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.3
+# ModelCheck 3D — prototyp 0.4
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.3 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.4 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.3**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.4**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
 
@@ -42,6 +42,20 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 Analiza podzbioru aktualizuje tylko jego pary. Pozostałe wyniki i ręczne oceny pozostają; niesprawdzone pary są wyraźnie oznaczone jako nieprzeanalizowane. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
 
 W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, a B i C mają też intersekcję. A i C są rozdzielone. Możesz od razu użyć własnych STL.
+
+## Kolory elementów
+
+| Stan | Kolor |
+| --- | --- |
+| Niezaznaczony i nieaktywny | Szary |
+| Zaznaczony, ale nieaktywny | Zielony |
+| Aktywny | Beżowy |
+
+Aktywny jest ostatnio wskazany element. Należy do zaznaczenia; pozostałe zaznaczone części są zielone. Shift + klik dodaje lub usuwa element z zaznaczenia. Jeśli odznaczysz lub usuniesz aktywną część, inna zaznaczona część staje się aktywna. Odznaczenie wszystkich pozostawia cały model szary.
+
+Te same kolory obowiązują w widoku 3D, na liście obiektów i przy elementach checklisty. Intersekcje są nadal czerwone i widoczne tylko po włączeniu podświetlenia.
+
+![Szary element niezaznaczony, zielony zaznaczony i beżowy aktywny](docs/selection.png)
 
 ## Sterowanie
 

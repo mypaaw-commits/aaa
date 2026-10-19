@@ -4,11 +4,11 @@ import { Viewer } from './Viewer';
 import { ObjectMenu } from './ObjectMenu';
 import type { ObjectMenuState } from './ObjectMenu';
 import type { ViewerHandle } from './Viewer';
-import { api, labels, number, palette } from './types';
+import { api, labels, number, partColor } from './types';
 import type { Job, Part, Relation } from './types';
 import './style.css';
 
-type Imported = { parts: Omit<Part, 'color' | 'visible'>[]; errors: { name: string; message: string }[] };
+type Imported = { parts: Omit<Part, 'visible'>[]; errors: { name: string; message: string }[] };
 const statusLabel = { TODO: 'Do sprawdzenia', OK: 'OK', FIX: 'Wymaga poprawki' };
 function ReviewCard({ relation, parts, disabled, onReview, onClose }: { relation: Relation; parts: Part[]; disabled: boolean; onReview: (status: Relation['status'], note: string) => void; onClose: () => void }) {
   const [note, setNote] = useState(relation.note);
@@ -33,7 +33,9 @@ export default function App() {
   const [session, setSession] = useState('');
   const [parts, setParts] = useState<Part[]>([]);
   const [relations, setRelations] = useState<Relation[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selection, setSelection] = useState<{ ids: string[]; activeId: string | null }>({ ids: [], activeId: null });
+  const selected = selection.ids;
+  const activePartId = selection.activeId;
   const [isolated, setIsolated] = useState<string[] | null>(null);
   const [activePair, setActivePair] = useState<string | null>(null);
   const [scope, setScope] = useState<'all' | 'selected'>('all');
@@ -93,7 +95,7 @@ export default function App() {
   }, [session, job?.id, job?.state]);
 
   const addImported = (result: Imported) => {
-    setParts(previous => [...previous, ...result.parts.map((part, i) => ({ ...part, color: palette[(previous.length + i) % palette.length], visible: true }))]);
+    setParts(previous => [...previous, ...result.parts.map(part => ({ ...part, visible: true }))]);
     setExpanded(previous => new Set([...previous, ...result.parts.map(part => part.id)]));
     if (result.errors.length) setError(result.errors.map(item => `${item.name}: ${item.message}`).join('\n'));
     if (result.parts.length) setNotice(`Wczytano ${result.parts.length} ${result.parts.length === 1 ? 'część' : 'części'}. Współrzędne STL zostały zachowane.`);
@@ -134,14 +136,19 @@ export default function App() {
   }
   function select(id: string | null, multi: boolean) {
     setActivePair(null);
-    if (!id) { if (!multi) setSelected([]); return; }
+    if (!id) { if (!multi) setSelection({ ids: [], activeId: null }); return; }
     if (isolated && !isolated.includes(id)) setIsolated(null);
     setExpanded(previous => new Set([...previous, id]));
     requestAnimationFrame(() => document.getElementById(`check-${id}`)?.scrollIntoView({ block: 'nearest' }));
-    setSelected(previous => multi ? previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id] : [id]);
+    setSelection(previous => {
+      if (!multi) return { ids: [id], activeId: id };
+      if (!previous.ids.includes(id)) return { ids: [...previous.ids, id], activeId: id };
+      const ids = previous.ids.filter(item => item !== id);
+      return { ids, activeId: previous.activeId === id ? ids.at(-1) ?? null : previous.activeId };
+    });
   }
-  function focusPair(relation: Relation) {
-    setActivePair(relation.id); setSelected(relation.part_ids); setIsolated(relation.part_ids);
+  function focusPair(relation: Relation, clickedId: string) {
+    setActivePair(relation.id); setSelection({ ids: relation.part_ids, activeId: clickedId }); setIsolated(relation.part_ids);
     setParts(previous => previous.map(part => relation.part_ids.includes(part.id) ? { ...part, visible: true } : part));
     requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
   }
@@ -155,7 +162,10 @@ export default function App() {
       await api(`/sessions/${session}/parts/${id}`, { method: 'DELETE' });
       setParts(previous => previous.filter(part => part.id !== id));
       setRelations(previous => previous.filter(relation => !relation.part_ids.includes(id)));
-      setSelected(previous => previous.filter(pid => pid !== id));
+      setSelection(previous => {
+        const ids = previous.ids.filter(pid => pid !== id);
+        return { ids, activeId: previous.activeId === id ? ids.at(-1) ?? null : previous.activeId };
+      });
       setIsolated(null); setActivePair(null); setLoaded(previous => Math.max(0, previous - 1));
       setNotice('Usunięto element z modelu.');
     } catch (err) { setError((err as Error).message); }
@@ -192,7 +202,7 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><strong>ModelCheck 3D</strong><span className="app-version">0.3</span></div>
+      <div className="brand"><strong>ModelCheck 3D</strong><span className="app-version">0.4</span></div>
       <div className="header-actions">
         <button className="button secondary help-button" onClick={() => setHelp(true)}>Pomoc</button>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wczytaj STL</button>
@@ -208,7 +218,7 @@ export default function App() {
           {!parts.length && <p className="empty-note">Wczytane pliki STL pojawią się tutaj.</p>}
           {parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase())).map(part => {
             const visible = part.visible && (!isolated || isolated.includes(part.id));
-            return <div key={part.id} className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${!visible ? 'muted' : ''}`}
+            return <div key={part.id} className={`object-row ${selected.includes(part.id) ? 'selected' : ''} ${activePartId === part.id ? 'active-part' : ''} ${!visible ? 'muted' : ''}`} data-selection={activePartId === part.id ? 'active' : selected.includes(part.id) ? 'selected' : 'idle'}
               onContextMenu={event => {
                 event.preventDefault();
                 setObjectMenu({ id: part.id, x: event.clientX, y: event.clientY, trigger: event.currentTarget.querySelector<HTMLButtonElement>('.object-select') });
@@ -221,8 +231,8 @@ export default function App() {
                 }
               }}>
 
-              <button className="object-select" aria-pressed={selected.includes(part.id)} onClick={event => select(part.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
-                <span className="part-swatch" style={{ background: part.color }} /><span title={part.name}>{part.name}{duplicateName(part)}</span>
+              <button className="object-select" aria-pressed={selected.includes(part.id)} aria-current={activePartId === part.id ? 'true' : undefined} onClick={event => select(part.id, event.shiftKey || event.ctrlKey || event.metaKey)}>
+                <span className="part-swatch" style={{ background: partColor(part.id, selected, activePartId) }} /><span title={part.name}>{part.name}{duplicateName(part)}</span>
                 {!part.solid && <span className="warning-text" title="Siatka wymaga weryfikacji">!</span>}
               </button>
               <button className="icon-button visibility-button" title={`${visible ? 'Ukryj' : 'Pokaż'} ${part.name}`} onClick={() => toggleVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
@@ -231,10 +241,11 @@ export default function App() {
           {parts.length > 0 && !parts.some(part => part.name.toLowerCase().includes(search.toLowerCase())) && <p className="empty-note">Nie znaleziono elementu.</p>}
         </div>
         <div className="selection-tools">
-          <div className="selection-summary"><strong>Zaznaczone: {selected.length}</strong><button className="text-button" disabled={!parts.length} onClick={() => setSelected(parts.map(part => part.id))}>Zaznacz wszystkie</button></div>
+          <p className="active-object" title={parts.find(part => part.id === activePartId)?.name}>Aktywny: {parts.find(part => part.id === activePartId)?.name ?? '—'}</p>
+          <div className="selection-summary"><strong>Zaznaczone: {selected.length}</strong><button className="text-button" disabled={!parts.length} onClick={() => setSelection(previous => ({ ids: parts.map(part => part.id), activeId: previous.activeId ?? parts.at(-1)?.id ?? null }))}>Zaznacz wszystkie</button></div>
           <button className="button secondary wide" disabled={!selected.length} onClick={fitSelected}><Focus size={18} />Izoluj wybrane</button>
           <button className="button secondary wide" disabled={!parts.length} onClick={showAll}><Eye size={18} />Pokaż cały model</button>
-          {selected.length > 0 && <button className="text-button wide" onClick={() => { setSelected([]); setActivePair(null); }}>Odznacz wszystkie</button>}
+          {selected.length > 0 && <button className="text-button wide" onClick={() => { setSelection({ ids: [], activeId: null }); setActivePair(null); }}>Odznacz wszystkie</button>}
         </div>
       </aside>
 
@@ -252,7 +263,7 @@ export default function App() {
         </section>
 
         <div className="viewport">
-          <Viewer ref={viewer} session={session} parts={parts} relations={overlayRelations} selected={selected} isolated={isolated} intersections={intersections} onSelect={select} onError={setError} onLoaded={setLoaded} />
+          <Viewer ref={viewer} session={session} parts={parts} relations={overlayRelations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections} onSelect={select} onError={setError} onLoaded={setLoaded} />
           <div className="scene-label"><Box size={17} /><strong>{isolated ? 'Wybrane elementy' : 'Cały model'}</strong><span>Widoczne: {parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length}/{parts.length}</span></div>
           <div className="view-controls"><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
           {!parts.length && <div className="welcome"><h1>Brak modelu</h1><p>Wczytaj pliki STL lub przeciągnij je do okna.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wybierz pliki STL</button><button className="text-button" disabled={busy || !session} onClick={() => void demo()}>Wypróbuj przykład A / B / C</button></div>}
@@ -274,15 +285,15 @@ export default function App() {
             const rows = all.filter(row => row.kind !== 'DISCONNECTED').sort((a, b) => otherName(a).localeCompare(otherName(b), 'pl', { numeric: true }));
             const complete = all.length === parts.length - 1;
             const isExpanded = expanded.has(part.id);
-            return <section className={`check-part ${selected.includes(part.id) ? 'highlight' : ''}`} key={part.id} id={`check-${part.id}`}>
+            return <section className={`check-part ${selected.includes(part.id) ? 'highlight' : ''} ${activePartId === part.id ? 'active-part' : ''}`} key={part.id} id={`check-${part.id}`}>
               <button className="check-part-heading" onClick={() => toggleExpanded(part.id)} aria-expanded={isExpanded}>
-                <span className="part-swatch" style={{ background: part.color }} /><strong title={part.name}>{part.name}{duplicateName(part)}</strong>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                <span className="part-swatch" style={{ background: partColor(part.id, selected, activePartId) }} /><strong title={part.name}>{part.name}{duplicateName(part)}</strong>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
               </button>
               {isExpanded && <div className="check-part-relations">
                 {rows.length > 0 && <p className="relation-list-label">{rows.some(row => row.kind === 'UNCERTAIN') ? 'Powiązania i pary do weryfikacji:' : 'Powiązany z:'}</p>}
                 {rows.map(row => {
                   const other = parts.find(item => item.id === row.part_ids.find(id => id !== part.id));
-                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row)}>
+                  return <button key={row.id} className={`relation-row ${activePair === row.id ? 'active' : ''}`} onClick={() => focusPair(row, other?.id ?? row.part_ids[1])}>
                     <div className="relation-title"><strong title={other?.name}>{other?.name}{other ? duplicateName(other) : ''}</strong><span className={`relation-kind ${row.kind.toLowerCase()}`}>{labels[row.kind]}</span></div>
                     <div className={`review-status ${row.status.toLowerCase()}`}>{row.status === 'OK' ? <Check size={15} /> : row.status === 'FIX' ? <TriangleAlert size={15} /> : <span className="status-circle" />}{statusLabel[row.status]}<ChevronRight size={16} /></div>
                   </button>;

@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { Part, Relation } from './types';
+import { partColor, partColors } from './types';
 
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; isolated: string[] | null; intersections: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; activePartId: string | null; isolated: string[] | null; intersections: boolean; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
 type Engine = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
@@ -55,9 +56,9 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     controls.mouseButtons.RIGHT = null;
     controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
     controls.screenSpacePanning = true;
-    scene.add(new THREE.HemisphereLight(0xddeaff, 0x494139, 2.5));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x656565, 2.5));
     const key = new THREE.DirectionalLight(0xffffff, 3); key.position.set(20, -30, 60); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xc8d7ff, 1); fill.position.set(-30, 10, 10); scene.add(fill);
+    const fill = new THREE.DirectionalLight(0xffffff, 1); fill.position.set(-30, 10, 10); scene.add(fill);
     const grid = new THREE.GridHelper(80, 40, 0x727272, 0x565656);
     grid.rotateX(Math.PI / 2); scene.add(grid);
     const axes = new THREE.AxesHelper(12); scene.add(axes);
@@ -133,7 +134,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
           const geometry = loader.parse(await response.arrayBuffer());
           if (cancelled) { geometry.dispose(); return; }
           geometry.computeBoundingSphere();
-          const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: part.color, roughness: .6, metalness: .1, side: THREE.DoubleSide }));
+          const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: partColors.idle, roughness: .6, metalness: 0, side: THREE.DoubleSide }));
           mesh.userData.id = part.id; e.meshes.set(part.id, mesh); e.scene.add(mesh);
           applyMaterials();
           latest.current.onLoaded(e.meshes.size);
@@ -152,15 +153,15 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     for (const part of current.parts) {
       const mesh = e.meshes.get(part.id); if (!mesh) continue;
       mesh.visible = part.visible && (!current.isolated || current.isolated.includes(part.id));
-      mesh.material.color.set(part.color);
-      mesh.material.emissive.set(current.selected.includes(part.id) ? '#245963' : '#000000');
-      mesh.material.emissiveIntensity = .35;
+      mesh.material.color.set(partColor(part.id, current.selected, current.activePartId));
+      mesh.material.emissive.set('#000000');
+      mesh.material.emissiveIntensity = 0;
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .25 : 1;
       mesh.material.depthWrite = !ghost; mesh.material.wireframe = false;
     }
     e.invalidate();
   }
-  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.intersections]);
+  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.activePartId, props.isolated, props.intersections]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;

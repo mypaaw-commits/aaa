@@ -44,7 +44,10 @@ h2 { font-size: 14px; font-weight: 600; }
 .object-list { flex: 1; overflow: auto; min-height: 60px; padding-bottom: 8px; }
 .object-row { display: flex; align-items: center; min-height: 33px; padding: 0 5px 0 8px; border-top: 1px solid transparent; border-bottom: 1px solid transparent; }
 .object-row:hover { background: #d8d8d8; }
-.object-row.selected { background: #c3d5e8; border-color: #a4b9ce; }
+.object-row.selected { background: #cfe2c8; border-color: #acc2a3; }
+.object-row.active-part { background: #e5d6bb; border-color: #c4b291; }
+.object-row.active-part .object-select { font-weight: 600; }
+.active-object { color: #444; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .object-select { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; align-self: stretch; text-align: left; padding: 5px 3px; }
 .object-select > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .object-row.muted .object-select { color: #7a7a7a; }
@@ -99,7 +102,8 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
 .check-part-heading { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; text-align: left; background: #d9d9d9; }
 .check-part-heading:hover { background: #cecece; }
 .check-part-heading > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 600; }
-.check-part.highlight .check-part-heading { background: #c3d5e8; }
+.check-part.highlight .check-part-heading { background: #cfe2c8; }
+.check-part.active-part .check-part-heading { background: #e5d6bb; }
 .check-part-relations { padding: 0 7px 5px 16px; }
 .relation-list-label { color: #5c5c5c; font-size: 12px; padding: 7px 4px 2px; }
 .relation-row { width: 100%; padding: 7px 5px; border: 1px solid transparent; border-bottom-color: #c8c8c8; text-align: left; }
