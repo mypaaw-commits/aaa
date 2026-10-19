@@ -211,4 +211,3 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .part-checklist { border-top: 0; margin-top: 0; }
 .viewport-legend .selection-color-legend { display: flex; gap: 16px; font-size: 11px; }
 .selection-color-legend > span { display: inline-flex; align-items: center; gap: 6px; color: #d6e0e7; }
-.overlay-switches { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 14px; }

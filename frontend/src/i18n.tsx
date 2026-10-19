@@ -38,10 +38,8 @@ const en = {
   coincidentCount: '{count} coincident', coincidentTip: 'Both objects occupy the same volume.',
   isolatePairAction: 'Isolate',
   objectConnections: 'Connections of {name}', projection: 'Projection', orthographic: 'Orthographic',
-  contactArea: 'Contact area · 70%',
   objectIntersections: 'Intersections of {name}', pairCount: '{count} pairs', pairCountOne: '1 pair',
   unselected: 'Not selected', selectionLegend: 'Selected', colorLegend: 'View colors',
-  showContacts: 'Show contact areas',
 };
 const pl: Record<keyof typeof en, string> = {
   language: 'Język', import: 'Wczytaj STL', objects: 'Obiekty', objectList: 'Obiekty modelu',
@@ -80,10 +78,8 @@ const pl: Record<keyof typeof en, string> = {
   coincidentCount: 'Pełne pokrycie: {count}', coincidentTip: 'Oba obiekty zajmują tę samą objętość.',
   isolatePairAction: 'Izoluj',
   objectConnections: 'Powiązania obiektu {name}', projection: 'Projekcja', orthographic: 'Ortograficzna',
-  contactArea: 'Powierzchnia styku · 70%',
   objectIntersections: 'Intersekcje obiektu {name}', pairCount: 'Pary: {count}', pairCountOne: 'Pary: 1',
   unselected: 'Niezaznaczone', selectionLegend: 'Zaznaczone', colorLegend: 'Kolory widoku',
-  showContacts: 'Pokaż powierzchnie styku',
 };
 export type Language = 'en' | 'pl';
 export type TextKey = keyof typeof en;
@@ -116,8 +112,6 @@ const serverErrors = [
   ['Nie można uruchomić WebGL. Włącz akcelerację sprzętową w przeglądarce.', 'Unable to start WebGL. Enable hardware acceleration in your browser.'],
   ['Nie można pobrać geometrii.', 'Unable to load geometry.'],
   ['Nie można pobrać obszaru przecięcia.', 'Unable to load the intersection geometry.'],
-  ['Nie można pobrać powierzchni styku.', 'Unable to load contact surface geometry.'],
-  ['Brak geometrii powierzchni styku.', 'Contact surface geometry not found.'],
   ['Wybierz pliki w formacie STL.', 'Choose STL files.'],
   ['Maksymalny rozmiar jednego STL to 100 MB.', 'The maximum STL file size is 100 MB.'],
   ['Brak wyniku analizy.', 'Analysis results are unavailable.'],

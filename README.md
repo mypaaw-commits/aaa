@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.15
+# ModelCheck 3D — prototype 0.16
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.15**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.16**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -44,7 +44,6 @@ Colors have one meaning throughout the workspace:
 | Matte gray | An unselected object |
 | Muted blue | A selected object, from the list, viewport or a pair action |
 | Red | The computed intersection region |
-| White fill at 70% with a contrasting border | Verified contact surface |
 | Purple | Full volume coincidence, in result labels and the analysis overlay |
 
 Selection never changes to a second color for a pair or a coincident object. The viewport legend and object swatches use the same palette. Marking an object reviewed leaves its result color unchanged. Object activation and the tutorial overlay have been removed.
@@ -66,9 +65,10 @@ Selection never changes to a second color for a pair or a coincident object. The
 
 ![Coincident solids shown in purple](docs/coincident.png)
 
-**Contact area** is the actual shared surface of two valid solids. After analysis, it appears white with **70% opacity** and a white contour over a dark border, including inside a transparent assembly. The contour follows patch boundaries rather than drawing every internal triangle. A curved fitted socket can have confirmed contact and small intersections in different regions; both overlays are available independently, without changing the volume result or clearing a Needs review status. Only the overlapping area of opposing coplanar surface triangles is highlighted. Different triangulations, partial faces, rotated faces and separate patches are supported. Point or edge contact and small gaps do not produce a white patch. Hiding either object or isolating another pair hides the patch. Full volume coincidence remains purple. The white contact overlay is informational and does not create a review task. **Show contact areas** hides or shows it independently of **Show intersections** and **Transparency**. Red regions have a clear outline and render over the object shells to prevent their colors from obscuring the result.
 
-![Grouped connections with a white contact surface](docs/connections-grouped.png)
+![Grouped informational connections](docs/connections-grouped.png)
+
+White contact-area overlays and their switch have been removed. Finding connections updates the results list without changing the 3D view. Red regions remain available only after explicitly checking intersections and enabling their overlay.
 
 **Transparency** above the 3D view independently toggles object opacity. It works before analysis and remains separate from the intersection overlay; running a check does not turn transparency on.
 
@@ -76,7 +76,6 @@ The Checks and Part checklist tabs each use the full height of the results panel
 
 ![Part checklist in a separate tab](docs/part-checklist.png)
 
-![Fitted curved contact shown through transparent objects](docs/fitted-contact.png)
 
 ![Inspect a single intersecting pair](docs/intersection-closeup.png)
 
@@ -124,7 +123,6 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 | Frame all visible / double click in 3D | Frame visible objects |
 | Floor | Toggle the grid and axes |
 | Transparency | Toggle object transparency independently of results |
-| Show contact areas | Toggle the white fill and boundary outline independently of red intersections |
 
 Both projections support framing, picking, orbit, pan, wheel zoom and resizing. Front, Top and 3D change camera direction within the chosen projection.
 
@@ -161,4 +159,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, a consistent selection palette, curved socket contact and mixed contact/overlap pairs, contact surface areas and coordinates, edge/point/gap rejection, grouped connections and status icons, perspective/orthographic controls, white contact rendering and visibility, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, unique pair inspection, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

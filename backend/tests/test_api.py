@@ -153,26 +153,17 @@ def test_uncertain_mesh_creates_uncertain_unchecked_tasks():
     assert all(task['result'] == 'UNCERTAIN' and not task['done'] for task in checked['tasks'])
 
 
-def test_contact_surface_endpoint_is_real_area_and_remains_informational():
+def test_connections_remain_informational_without_contact_area_geometry():
     sid = session()
     client.post(f'/api/sessions/{sid}/demo')
     result = analyze(sid)
-    row = next(row for row in result['relations'] if row['kind'] == 'CONNECTED')
-    assert row['contact_area'] == pytest.approx(64)
-    assert all(not key.startswith('_') for key in row)
-    response = client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact")
-    assert response.status_code == 200
-    surface = trimesh.load(io.BytesIO(response.content), file_type='stl')
-    assert surface.area == pytest.approx(64)
-    assert np.allclose(surface.vertices[:, 0], -4)
-    for other in result['relations']:
-        if other['kind'] != 'CONNECTED':
-            assert other['contact_area'] == 0
-            assert client.get(f"/api/sessions/{sid}/relations/{other['id']}/contact").status_code == 404
     assert result['tasks'] == []
+    row = next(row for row in result['relations'] if row['kind'] == 'CONNECTED')
+    assert 'contact_area' not in row
+    assert client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact").status_code == 404
 
 
-def test_pair_can_show_contact_and_intersection_in_different_regions():
+def test_partial_contact_does_not_hide_intersection_elsewhere():
     sid = session()
     a_parts, b_parts = [], []
     for y, x in [(-3, 2), (3, 1.5)]:
@@ -184,9 +175,4 @@ def test_pair_can_show_contact_and_intersection_in_different_regions():
     row = result['relations'][0]
     assert row['kind'] == 'INTERSECTION'
     assert row['volume'] == pytest.approx(2)
-    assert row['contact_area'] == pytest.approx(4)
     assert all(task['result'] == 'INTERSECTION' and not task['done'] for task in result['tasks'])
-    response = client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact")
-    patch = trimesh.load(io.BytesIO(response.content), file_type='stl')
-    assert np.allclose(patch.vertices[:, 0], 1)
-    assert np.all(patch.vertices[:, 1] < 0)

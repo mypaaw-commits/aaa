@@ -1,21 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { loadExample, stlBox } from './fixtures';
 
-async function whitePixels(page: import('@playwright/test').Page) {
-  const png = await page.locator('canvas').screenshot();
-  return page.evaluate(async bytes => {
-    const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const context = canvas.getContext('2d')!;
-    context.drawImage(bitmap, 0, 0);
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let count = 0;
-    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] > 215 && pixels[i + 1] > 215 && pixels[i + 2] > 215) count++;
-    bitmap.close();
-    return count;
-  }, [...png]);
-}
-
 test('Connections expand per object, keep selection, and distinguish review icons', async ({ page }, testInfo) => {
   await page.goto('/');
   await loadExample(page);
@@ -107,20 +92,22 @@ test('Perspective and orthographic both support framing, picking, zoom and resiz
   expect(errors).toEqual([]);
 });
 
-test('Exact contact patches render white and follow object visibility', async ({ page }, testInfo) => {
+test('Finding connections does not change the 3D image or request contact overlays', async ({ page }) => {
   await page.goto('/');
   await loadExample(page);
   await page.getByRole('button', { name: 'Floor', exact: true }).click();
-  await expect(page.locator('.geometry-loading')).toHaveCount(0);
-  const before = await whitePixels(page);
-  const surface = page.waitForResponse(response => response.url().endsWith('/contact') && response.status() === 200);
+  await page.getByRole('button', { name: 'Transparency', exact: true }).click();
+  await page.waitForTimeout(250);
+  const before = await page.locator('canvas').screenshot();
+  const overlayRequests: string[] = [];
+  page.on('request', request => { if (/\/(contact|intersection)$/.test(request.url())) overlayRequests.push(request.url()); });
   await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await surface;
-  await expect(page.locator('.contact-legend')).toHaveText('Contact area · 70%');
-  await expect.poll(() => whitePixels(page)).toBeGreaterThan(before + 100);
-  await page.screenshot({ path: testInfo.outputPath('contact-area.png') });
-  await page.getByTitle('Hide A.stl', { exact: true }).click();
-  await expect(page.locator('.contact-legend')).toHaveCount(0);
-  await expect.poll(() => whitePixels(page)).toBeLessThan(before + 50);
-  await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
+  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await expect(page.getByRole('checkbox', { name: 'Show contact areas', exact: true })).toHaveCount(0);
+  expect(overlayRequests).toEqual([]);
+  expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);
+  await page.getByRole('button', { name: 'Connections of A.stl', exact: true }).click();
+  await expect(page.locator('#relations-panel .pair-status')).toHaveText('Connected');
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('pl');
+  await expect(page.getByRole('checkbox', { name: 'Pokaż powierzchnie styku', exact: true })).toHaveCount(0);
 });

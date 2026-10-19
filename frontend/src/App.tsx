@@ -31,7 +31,6 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [panelTab, setPanelTab] = useState<ResultsTab>('checks');
   const [intersections, setIntersections] = useState(false);
-  const [contacts, setContacts] = useState(true);
   const [transparent, setTransparent] = useState(false);
   const [floor, setFloor] = useState(true);
   const [projection, setProjection] = useState<Projection>('perspective');
@@ -199,7 +198,6 @@ export default function App() {
   }
   const listedParts = parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase()));
   const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
-  const contactsReady = relations.some(row => row.contact_area > 0);
   const connectedCount = relations.filter(row => row.kind === 'CONNECTED' || row.kind === 'INTERSECTION').length;
   const visibleIntersections = relations.filter(row => row.kind === 'INTERSECTION' && row.part_ids.every(id => parts.some(part => part.id === id && part.visible && (!isolated || isolated.includes(id)))));
 
@@ -211,7 +209,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.15</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.16</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
@@ -242,7 +240,7 @@ export default function App() {
             <button className="button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze('INTERSECTIONS')}>{job?.state === 'running' && job.check === 'INTERSECTIONS' ? <LoaderCircle size={16} className="spin" /> : <ScanLine size={16} />}{t(job?.state === 'running' && job.check === 'INTERSECTIONS' ? 'checking' : 'checkIntersections')}</button>
           </div>
           <div className="analysis-result">
-            <div className="overlay-switches"><label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label><label className="intersection-toggle"><input type="checkbox" checked={contacts && contactsReady} disabled={!contactsReady} onChange={event => setContacts(event.target.checked)} /><span>{t('showContacts')}</span></label></div>
+            <label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label>
             <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? job.check === 'INTERSECTIONS' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : t('connectionsFound') : ''}</span>
           </div>
           {job?.state === 'running' && <progress aria-label={t('analysisProgress')} max={job.total} value={job.completed} />}
@@ -252,13 +250,12 @@ export default function App() {
             <div className="scene-label"><Box size={16} /><strong>{t(isolated ? 'isolated' : 'fullModel')}</strong><span>{t('visible', { count: parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length, total: parts.length })}</span></div>
             <div className="view-controls"><select aria-label={t('projection')} value={projection} onChange={event => setProjection(event.target.value as Projection)}><option value="perspective">{t('perspective')}</option><option value="orthographic">{t('orthographic')}</option></select><button className="transparency-toggle" aria-label={t('transparency')} aria-pressed={transparent} title={t('transparencyTip')} disabled={!parts.length} onClick={() => setTransparent(value => !value)}><Layers2 size={15} />{t('transparency')}</button><button className="floor-toggle" aria-label={t('floor')} aria-pressed={floor} title={t('floorTip')} onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />{t('floor')}</button><button title={t('fit')} onClick={() => viewer.current?.fit()}><Maximize size={16} /></button><div className="axis-controls"><button title={t('front')} onClick={() => viewer.current?.view('y')}>{t('front')}</button><button title={t('top')} onClick={() => viewer.current?.view('z')}>{t('top')}</button><button title={t('view3d')} onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
           </div>
-          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} contacts={contacts} floor={floor} projection={projection} onSelect={select} onError={setError} onLoaded={setLoaded} />
+          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} onSelect={select} onError={setError} onLoaded={setLoaded} />
           {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
           {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />{t('loadingGeometry', { count: loaded, total: parts.length })}</div>}
           {isolated && <button className="exit-isolation button" onClick={showAll}><ArrowLeft size={16} />{t('back')}</button>}
           <div className="viewport-legend" aria-label={t('colorLegend')}>
             {parts.length > 0 && <div className="selection-color-legend"><span><i style={{ background: partColors.idle }} />{t('unselected')}</span><span><i style={{ background: partColors.selected }} />{t('selectionLegend')}</span></div>}
-            {contacts && relations.some(row => row.contact_area > 0 && row.part_ids.every(id => parts.some(part => part.id === id && part.visible && (!isolated || isolated.includes(id))))) && <div className="view-legend contact-legend"><span><i style={{ background: '#ffffff', opacity: .7 }} />{t('contactArea')}</span></div>}
 
             {intersections && intersectionsReady && <div className="view-legend">{visibleIntersections.some(row => !row.coincident) && <span><i style={{ background: partColors.intersection }} />{t('intersectionLegend')}</span>}{visibleIntersections.some(row => row.coincident) && <span><i style={{ background: partColors.coincident }} />{t('coincident')}</span>}</div>}
           </div>
