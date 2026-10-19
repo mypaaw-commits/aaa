@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.8.0')
+app = FastAPI(title='ModelCheck 3D', version='0.9.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()

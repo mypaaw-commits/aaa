@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.8
+# ModelCheck 3D — prototyp 0.9
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.8 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.9 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.8**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.9**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
 
@@ -57,7 +57,19 @@ Prawy przycisk na lewej liście **tylko otwiera menu**. Polecenia są sortowane 
 
 Samo otwarcie lub zamknięcie menu nie zmienia aktywnego obiektu. Shift+F10 otwiera to samo menu; strzałki, Home i End wybierają pozycję, Enter wykonuje polecenie, Escape zamyka menu.
 
-Lewy przycisk zaznacza, Shift + klik dodaje lub odejmuje części. Nie aktywuje obiektu. Aktywacja pozostaje niezależna od zaznaczenia; usunięcie aktywnego obiektu nie aktywuje następnego.
+Na lewej liście:
+
+- Klik zaznacza jeden element; Ctrl + klik dodaje go lub odejmuje.
+- Shift + klik zaznacza zakres od poprzedniego punktu wyboru; Ctrl + Shift dodaje zakres do istniejącego zaznaczenia.
+- Przeciągnięcie od pustego obszaru listy (również jej wąskiego lewego marginesu) tworzy ramkę zaznaczenia. Ctrl przełącza elementy objęte ramką, Shift je dodaje. Przy górnej lub dolnej krawędzi lista przewija się automatycznie. Escape podczas przeciągania przywraca poprzedni wybór.
+- Klik w pustym miejscu usuwa zaznaczenie; Ctrl+A zaznacza wszystkie pozycje aktualnie widoczne przez filtr wyszukiwania.
+- Strzałki, Home i End przemieszczają wybór; Shift rozszerza zakres, Ctrl przenosi tylko fokus, spacja przełącza wskazany element. Escape usuwa zaznaczenie.
+- Lista jest sortowana alfabetycznie z naturalną kolejnością numerów. Zakresy obejmują wyłącznie pozycje pasujące do wyszukiwania.
+- Ikona oka zmienia tylko widoczność. PPM otwiera menu.
+
+W widoku 3D klik zaznacza jedną część, a Shift/Ctrl + klik dodaje lub odejmuje wskazaną część. Aktywacja pozostaje niezależna od zaznaczenia i odbywa się poleceniem „Aktywuj”; usunięcie aktywnego obiektu nie aktywuje następnego.
+
+![Zaznaczanie ramką na lewej liście, bez zmiany aktywnego obiektu](docs/selection-marquee.png)
 
 | Stan obiektu | Kolor |
 | --- | --- |
@@ -73,7 +85,7 @@ Kolory są nieco jaśniejsze niż w wersji 0.6. Materiały mają maksymalną chr
 
 Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
 
-Interfejs 0.8 ma jaśniejsze panele, większe odstępy i spokojniejsze obramowania. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
+Interfejs 0.9 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
 
 ## Sterowanie
 
@@ -83,7 +95,12 @@ Interfejs 0.8 ma jaśniejsze panele, większe odstępy i spokojniejsze obramowan
 | Shift + środkowy przycisk | Przesuwanie widoku |
 | Kółko | Zoom |
 | Klik w model lub nazwę | Wybór elementu |
-| Shift / Ctrl + klik | Wiele elementów |
+| Ctrl + klik na liście | Dodaj / odejmij element |
+| Shift + klik na liście | Zaznacz zakres |
+| Przeciągnięcie od pustego obszaru listy | Ramka zaznaczenia |
+| Ctrl+A / Escape na liście | Zaznacz pozycje z filtra / odznacz |
+| Strzałki / Home / End na liście | Nawigacja; Shift rozszerza zakres |
+| Shift / Ctrl + klik w 3D | Dodaj / odejmij część |
 | Ikona oka | Ukrywanie i pokazywanie części |
 | Prawy przycisk na liście | Menu „Aktywuj”, „Usuń” |
 | Izoluj wybrane | Widok samych zaznaczonych części |
