@@ -2,6 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import type { Part, Relation } from './types';
 import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
@@ -9,7 +12,7 @@ import { useI18n } from './i18n';
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; pairIds: string[]; coincidentPair: boolean; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; contacts: boolean; floor: boolean; projection: Projection; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
 type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; setProjection: (mode: Projection) => void; invalidate: () => void };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
@@ -203,7 +206,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     for (const part of current.parts) {
       const mesh = e.meshes.get(part.id); if (!mesh) continue;
       mesh.visible = part.visible && (!current.isolated || current.isolated.includes(part.id));
-      mesh.material.color.set(partColor(part.id, current.selected, current.pairIds, current.coincidentPair));
+      mesh.material.color.set(partColor(part.id, current.selected));
       mesh.material.emissive.set('#000000');
       mesh.material.emissiveIntensity = 0;
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .25 : 1;
@@ -211,7 +214,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     }
     e.invalidate();
   }
-  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.pairIds, props.coincidentPair, props.isolated, props.transparent]);
+  useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.transparent]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
@@ -219,30 +222,45 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const clear = () => { [...e.overlays.children].forEach(child => { e.overlays.remove(child); dispose(child); }); e.invalidate(); };
     clear();
     const visible = new Set(props.parts.filter(part => part.visible && (!props.isolated || props.isolated.includes(part.id))).map(part => part.id));
+    const outline = (geometry: THREE.BufferGeometry, contact: boolean, coincident: boolean) => {
+      // Boundary edges of the contact patch, without its internal triangulation.
+      const edges = new THREE.EdgesGeometry(geometry, contact ? 179 : 25);
+      const positions = edges.getAttribute('position').array as Float32Array;
+      for (const style of contact ? [{ color: '#292e32', width: 5, order: 6 }, { color: '#ffffff', width: 2.5, order: 7 }] : [{ color: coincident ? '#d5b4ee' : '#ff9696', width: 1.5, order: 11 }]) {
+        const lineGeometry = new LineSegmentsGeometry().setPositions(positions);
+        const material = new LineMaterial({ color: style.color, linewidth: style.width, depthTest: false, depthWrite: false, transparent: true, opacity: 1, toneMapped: false });
+        const lines = new LineSegments2(lineGeometry, material);
+        lines.renderOrder = style.order;
+        e.overlays.add(lines);
+      }
+      edges.dispose();
+    };
     const load = async () => {
       for (const relation of props.relations) {
         if (!relation.part_ids.every(id => visible.has(id))) continue;
-        const contact = relation.kind === 'CONNECTED' && relation.contact_area > 0;
-        if (contact || relation.kind === 'INTERSECTION' && props.intersections) {
+        // Contact and volume overlap can occur in different regions of one pair.
+        const layers = [ ...(props.contacts && relation.contact_area > 0 ? ['contact' as const] : []), ...(relation.kind === 'INTERSECTION' && props.intersections ? ['intersection' as const] : []) ];
+        for (const layer of layers) {
+          const contact = layer === 'contact';
           try {
-            const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/${contact ? 'contact' : 'intersection'}`, { signal: abort.signal });
+            const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/${layer}`, { signal: abort.signal });
             if (!response.ok) throw new Error(contact ? 'Unable to load contact surface geometry.' : 'Nie można pobrać obszaru przecięcia.');
             const geometry = loader.parse(await response.arrayBuffer());
             if (cancelled) { geometry.dispose(); return; }
-            const material = contact
-              ? new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false })
-              : new THREE.MeshStandardMaterial({ color: relation.coincident ? partColors.coincident : '#b34343', emissive: relation.coincident ? '#331a4d' : '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+            const material = new THREE.MeshBasicMaterial({ color: contact ? partColors.contact : relation.coincident ? partColors.coincident : partColors.intersection, transparent: true, opacity: contact ? .7 : .9, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true });
             const mesh = new THREE.Mesh(geometry, material);
             // Contact surfaces sit inside the assembly; render the actual patch
             // through the shells so it is visible without moving either object.
-            mesh.renderOrder = contact ? 6 : 5; e.overlays.add(mesh); e.invalidate();
+            mesh.renderOrder = contact ? 5 : 10; e.overlays.add(mesh);
+            outline(geometry, contact, relation.coincident);
+            e.invalidate();
           } catch (error) { if (!cancelled) latest.current.onError(error instanceof Error ? error.message : String(error)); }
         }
       }
     };
     void load();
     return () => { cancelled = true; abort.abort(); clear(); };
-  }, [props.relations, props.parts.map(part => `${part.id}:${part.visible}`).sort().join(','), props.isolated, props.intersections, props.session]);
+  }, [props.relations, props.parts.map(part => `${part.id}:${part.visible}`).sort().join(','), props.isolated, props.intersections, props.contacts, props.session]);
 
   return <div className="canvas-host" ref={host} aria-label={t('view3d')} />;
 });

@@ -39,7 +39,7 @@ h2 { font-size: 12px; font-weight: 600; }
 .object-list:focus-visible { outline: 2px solid #78a2b5; }
 .object-row { position: relative; display: flex; align-items: center; min-height: 36px; padding: 0 4px 0 7px; border-left: 3px solid transparent; border-radius: 4px; margin-bottom: 2px; }
 .object-row:hover { background: #edf2f5; }
-.object-row.selected { background: #dce8d5; border-left-color: #7a9b65; }
+.object-row.selected { background: #dfeaf2; border-left-color: #628ca8; }
 .object-row:focus-within { outline: 1px solid #87a3af; outline-offset: -1px; }
 .object-select { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; align-self: stretch; text-align: left; padding: 5px 3px; font-size: 13px; cursor: grab; }
 .object-select:active { cursor: grabbing; }
@@ -108,7 +108,7 @@ progress { display: block; width: 100%; height: 4px; margin-top: 9px; accent-col
 .result-section-heading h2 { display: flex; align-items: center; gap: 7px; font-size: 11px; }
 .results-scroll, .intersection-results-scroll, .part-review-scroll { min-height: 0; overflow: auto; }
 .results-scroll { flex: 1; }
-.checks-pairs-section { display: flex; flex-direction: column; max-height: 45%; min-height: 82px; flex-shrink: 0; }
+.checks-pairs-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .result-pair { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-bottom: 1px solid #edf0f3; }
 .result-pair.inspected { background: #edf5f8; box-shadow: inset 2px 0 #73a3b1; }
 .pair-symbol { color: #8ba1ad; }
@@ -128,7 +128,6 @@ progress { display: block; width: 100%; height: 4px; margin-top: 9px; accent-col
 .review-status { display: block; font-size: 10px; line-height: 1.6; margin-top: 2px; color: #85959f; }
 .review-status.intersectionCount { color: #ad796e; }
 .review-status.uncertain, .review-status.stale { color: #ab8b56; }
-.review-row.reviewed .review-status { color: #78946c; }
 .pending-check { width: 14px; height: 14px; border: 1px solid #d9e1e7; border-radius: 3px; color: #c9d5dd; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .note-button { width: 25px; height: 27px; color: #9bacb7; }
 .note-button.has-note { color: #498697; }
@@ -166,7 +165,6 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .review-status, .review-count { font-size: 11px; color: #607480; }
 .review-status.intersectionCount, .review-status.intersectionCountOne { color: #9a6256; }
 .review-status.uncertain, .review-status.stale { color: #8b6b35; }
-.review-row.reviewed .review-status { color: #5e7f50; }
 .empty-note { color: #617583; }
 .note-button { color: #7d929f; }
 .selection-count { font-size: 11px; color: #697d8b; }
@@ -201,3 +199,16 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .review-status { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
 .review-status svg { flex-shrink: 0; }
 .view-controls select { background: #50595f; color: #e4e9ec; border: 1px solid #69747c; border-radius: 3px; padding: 5px 6px; font-size: 11px; min-height: 28px; }
+
+.selection-marquee { border-color: #628ca8; background: #628ca823; }
+.result-tabs [role=tab] { display: inline-flex; gap: 5px; align-items: center; justify-content: center; padding: 12px 10px; font-size: 12px; }
+.result-tabs [role=tab] svg { flex-shrink: 0; }
+.check-section-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 14px 12px; min-height: 49px; border-bottom: 1px solid var(--line); text-align: left; color: #9a4949; }
+.check-section-toggle strong { flex: 1; font-size: 13px; font-weight: 600; }
+.check-section-toggle:hover { background: #f2f5f7; }
+.intersection-results-scroll { flex: 1; }
+.intersection-results-scroll[hidden], .connection-children[hidden] { display: none; }
+.part-checklist { border-top: 0; margin-top: 0; }
+.viewport-legend .selection-color-legend { display: flex; gap: 16px; font-size: 11px; }
+.selection-color-legend > span { display: inline-flex; align-items: center; gap: 6px; color: #d6e0e7; }
+.overlay-switches { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 14px; }

@@ -32,7 +32,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.getByRole('button', { name: 'Select pair: A.stl / B.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
   await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
-  await expect(page.locator('.object-row').filter({ hasText: 'B.stl' }).locator('.part-swatch')).toHaveCSS('background-color', 'rgb(178, 149, 98)');
+  await expect(page.locator('.object-row').filter({ hasText: 'B.stl' }).locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
   await expect(page.locator('.scene-label')).toContainText('3 / 3 visible');
   const before = await page.locator('canvas').screenshot();
   await page.getByRole('tab', { name: 'Checks', exact: true }).click();
@@ -48,6 +48,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.getByRole('button', { name: 'Back to full model', exact: true }).click();
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(3);
+  await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
   await expect(page.locator('.checks-pairs-section .result-pair')).toHaveCount(1);
   await expect(page.locator('.review-count')).toHaveText('0 / 3 reviewed');
   await expect(page.getByLabel('Show intersections', { exact: true })).toBeChecked();
@@ -63,6 +65,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.waitForTimeout(200);
   await page.screenshot({ path: testInfo.outputPath('intersection-closeup.png') });
   await page.getByRole('button', { name: 'Back to full model', exact: true }).click();
+  await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   const bReview = page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true });
   await bReview.check();
   await expect(page.getByRole('checkbox', { name: 'Reviewed: C.stl', exact: true })).not.toBeChecked();
@@ -74,6 +77,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.screenshot({ path: testInfo.outputPath('notes.png') });
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Check intersections', exact: true })).toBeEnabled();
+  await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(bReview).toBeChecked();
   await expect(page.getByRole('textbox', { name: 'Notes: B.stl', exact: true })).toHaveValue('Inspect the peg before printing.');
   await page.locator('input[type=file]').setInputFiles([stlBox('D.stl', 40)]);
@@ -88,18 +92,21 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   expect(errors).toEqual([]);
 });
 
-test('Three overlapping objects show three unique pairs and three compact review rows', async ({ page }, testInfo) => {
+test('Three overlapping objects group checks and keep a unique pair total', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   await page.locator('input[type=file]').setInputFiles([stlBox('base without socket.stl', 0, 8), stlBox('base.stl', 1, 8), stlBox('base with socket.stl', 2, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
-  await expect(page.locator('.checks-pairs-section .result-pair')).toHaveCount(3);
+  await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(3);
+  await expect(page.locator('.check-section-toggle .count')).toHaveText('3 pairs');
+  await page.getByRole('button', { name: 'Intersections of base.stl', exact: true }).click();
+  await expect(page.locator('.checks-pairs-section .result-pair')).toHaveCount(2);
   await expect(page.locator('.review-row')).toHaveCount(3);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await expect(page.locator('.review-status.intersectionCount')).toHaveCount(3);
   const names = await page.locator('.checks-pairs-section .result-pair .pair-files').allTextContents();
-  expect(new Set(names).size).toBe(3);
+  expect(new Set(names).size).toBe(2);
   await page.screenshot({ path: testInfo.outputPath('three-pairs.png') });
 });
 

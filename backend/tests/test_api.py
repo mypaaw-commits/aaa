@@ -170,3 +170,23 @@ def test_contact_surface_endpoint_is_real_area_and_remains_informational():
             assert other['contact_area'] == 0
             assert client.get(f"/api/sessions/{sid}/relations/{other['id']}/contact").status_code == 404
     assert result['tasks'] == []
+
+
+def test_pair_can_show_contact_and_intersection_in_different_regions():
+    sid = session()
+    a_parts, b_parts = [], []
+    for y, x in [(-3, 2), (3, 1.5)]:
+        a = trimesh.creation.box(extents=[2, 2, 2]); a.apply_translation([0, y, 0]); a_parts.append(a)
+        b = trimesh.creation.box(extents=[2, 2, 2]); b.apply_translation([x, y, 0]); b_parts.append(b)
+    a, b = trimesh.util.concatenate(a_parts), trimesh.util.concatenate(b_parts)
+    client.post(f'/api/sessions/{sid}/parts', files=[('files', ('A.stl', a.export(file_type='stl'))), ('files', ('B.stl', b.export(file_type='stl')))])
+    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    row = result['relations'][0]
+    assert row['kind'] == 'INTERSECTION'
+    assert row['volume'] == pytest.approx(2)
+    assert row['contact_area'] == pytest.approx(4)
+    assert all(task['result'] == 'INTERSECTION' and not task['done'] for task in result['tasks'])
+    response = client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact")
+    patch = trimesh.load(io.BytesIO(response.content), file_type='stl')
+    assert np.allclose(patch.vertices[:, 0], 1)
+    assert np.all(patch.vertices[:, 1] < 0)

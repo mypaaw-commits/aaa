@@ -44,7 +44,8 @@ def bounds_distance(a: Shape, b: Shape) -> float:
 def contact_surface(a: Shape, b: Shape) -> trimesh.Trimesh | None:
     """Intersect opposing coplanar triangles, without inventing area for edges/gaps.
 
-    Call only for a CONNECTED pair of valid solids with zero common volume.
+    Call for related valid solids. A pair can touch in one region and overlap
+    in another; this surface test does not replace its volume classification.
     R-tree candidates avoid comparing every source triangle with every target.
     The tolerance handles roundoff, independently of the connection epsilon.
     """

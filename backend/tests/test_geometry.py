@@ -136,3 +136,17 @@ def test_contact_roundoff_tolerance_does_not_turn_remote_small_gaps_into_area(tr
         mesh.apply_translation([translation, 0, 0])
     assert contact_surface(prepare(a), prepare(touching)).area == pytest.approx(4)
     assert contact_surface(prepare(a), prepare(separated)) is None
+
+
+def test_curved_fitted_socket_contact_does_not_clear_borderline_overlap():
+    from backend.geometry import contact_surface
+    outer = prepare(trimesh.creation.icosphere(subdivisions=2, radius=4))
+    key = trimesh.creation.icosphere(subdivisions=2, radius=2)
+    key.apply_translation([0, 0, 3]); key = prepare(key)
+    output = (outer.manifold - key.manifold).to_mesh64()
+    socket = prepare(trimesh.Trimesh(vertices=output.vert_properties[:, :3], faces=output.tri_verts))
+    metadata, _ = analyze_pair(socket, key)
+    patch = contact_surface(socket, key)
+    assert metadata['kind'] in ('UNCERTAIN', 'INTERSECTION')
+    assert patch.area == pytest.approx(30.331559167)
+    assert np.all(trimesh.proximity.closest_point_naive(key.mesh, patch.vertices)[1] < 1e-8)

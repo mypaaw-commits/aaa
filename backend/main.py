@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, contact_surface, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.14.0')
+app = FastAPI(title='ModelCheck 3D', version='0.15.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -165,10 +165,14 @@ def run_analysis(session, ids, job):
     results = {}
     try:
         for i, (a, b) in enumerate(pairs):
-            metadata, common = analyze_pair(session['parts'][a]['shape'], session['parts'][b]['shape'])
+            shape_a, shape_b = session['parts'][a]['shape'], session['parts'][b]['shape']
+            metadata, common = analyze_pair(shape_a, shape_b)
             contact = None
-            if metadata['kind'] == 'CONNECTED':
-                contact = contact_surface(session['parts'][a]['shape'], session['parts'][b]['shape'])
+            # A fitted socket can have exact contact alongside a small overlap,
+            # or a borderline Boolean volume. Keep that result and show only
+            # the independently verified contact patches.
+            if shape_a.solid and shape_b.solid and metadata['kind'] != 'DISCONNECTED' and not metadata['coincident']:
+                contact = contact_surface(shape_a, shape_b)
             rid = ':'.join(sorted([a, b]))
             results[rid] = {'id': rid, 'part_ids': [a, b], **metadata,
                             'contact_area': float(contact.area) if contact is not None else 0.,

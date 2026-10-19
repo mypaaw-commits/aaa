@@ -5,11 +5,9 @@ export type CheckKind = 'RELATIONS' | 'INTERSECTIONS';
 export type CheckTask = { id: string; part_id: string; check: 'INTERSECTIONS'; done: boolean; note: string; stale: boolean; result: 'CLEAR' | 'INTERSECTION' | 'UNCERTAIN'; intersections: number; uncertain_pairs: number; coincident_pairs: number };
 export type AnalysisResult = { job: Job | null; relations: Relation[]; tasks: CheckTask[] };
 export type Job = { id: string; check: CheckKind; state: 'running' | 'done' | 'error'; completed: number; total: number; seconds: number; error: string | null };
-export const partColors = { idle: '#949494', selected: '#67845b', pairFirst: '#628ca8', pairSecond: '#b29562', coincident: '#956bb6' };
-export function partColor(id: string, selected: string[], pairIds: string[] = [], coincident = false) {
-  if (!selected.includes(id)) return partColors.idle;
-  const index = pairIds.indexOf(id);
-  return index < 0 ? partColors.selected : coincident ? partColors.coincident : index === 0 ? partColors.pairFirst : partColors.pairSecond;
+export const partColors = { idle: '#949494', selected: '#628ca8', intersection: '#cf4545', contact: '#ffffff', coincident: '#956bb6' };
+export function partColor(id: string, selected: string[]) {
+  return selected.includes(id) ? partColors.selected : partColors.idle;
 }
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch('/api' + path, init);

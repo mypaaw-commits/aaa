@@ -8,6 +8,7 @@ test('English is the default; switching languages preserves models, reviews and 
   await loadExample(page);
   await page.locator('.object-select').first().click();
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true }).check();
   await page.getByRole('button', { name: 'Notes: B.stl', exact: true }).click();
   await page.getByRole('textbox', { name: 'Notes: B.stl', exact: true }).fill('Keep this note.');
