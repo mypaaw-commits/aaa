@@ -2,9 +2,9 @@ import { useLayoutEffect, useRef } from 'react';
 
 export type ObjectMenuState = { id: string; x: number; y: number; trigger: HTMLButtonElement | null };
 
-type Props = { menu: ObjectMenuState; name: string; disabled: boolean; onClose: () => void; onDelete: () => void };
+type Props = { menu: ObjectMenuState; name: string; disabled: boolean; onClose: () => void; onDelete: () => void; onActivate: () => void };
 
-export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
+export function ObjectMenu({ menu, name, disabled, onClose, onDelete, onActivate }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = ref.current!;
@@ -17,6 +17,13 @@ export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
       if (!element.contains(event.target as Node)) onClose();
     };
     const keyboard = (event: KeyboardEvent) => {
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault();
+        const items = [...element.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+        const current = items.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[next]?.focus();
+      }
       if (event.key === 'Escape' || event.key === 'Tab') {
         event.preventDefault();
         onClose();
@@ -35,7 +42,11 @@ export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
     };
   }, [menu, onClose]);
 
+  const actions = [
+    { id: 'activate', label: 'Aktywuj', disabled: false, run: onActivate },
+    { id: 'delete', label: 'Usuń', disabled, run: onDelete },
+  ].sort((a, b) => a.label.localeCompare(b.label, 'pl'));
   return <div ref={ref} className="object-context-menu" role="menu" aria-label={`Opcje elementu ${name}`} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onContextMenu={event => event.preventDefault()}>
-    <button role="menuitem" disabled={disabled} onClick={onDelete}>Usuń</button>
+    {actions.map(action => <button key={action.id} role="menuitem" disabled={action.disabled} onClick={action.run}>{action.label}</button>)}
   </div>;
 }

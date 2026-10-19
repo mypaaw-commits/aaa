@@ -48,53 +48,73 @@ test('model ABC: full analysis and independent viewport selection and list activ
   await expect(b).toHaveAttribute('data-selection', 'selected');
   await expect(page.locator('.object-row[data-selection=active]')).toHaveCount(0);
   await a.click({ button: 'right' });
-  await page.keyboard.press('Escape');
+  const activationMenu = page.getByRole('menu', { name: 'Opcje elementu A.stl' });
+  await expect(activationMenu.getByRole('menuitem')).toHaveText(['Aktywuj', 'Usuń']);
+  await expect(a).toHaveAttribute('data-selection', 'selected');
+  await page.keyboard.press('ArrowDown');
+  await expect(activationMenu.getByRole('menuitem', { name: 'Usuń', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(a).toHaveAttribute('data-selection', 'active');
   await expect(b).toHaveAttribute('data-selection', 'selected');
   await expect(c).toHaveAttribute('data-selection', 'idle');
-  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(207, 185, 145)');
-  await expect(b.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(116, 172, 100)');
-  await expect(c.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(155, 155, 155)');
+  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(141, 123, 91)');
+  await expect(b.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(66, 97, 59)');
+  await expect(c.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(120, 120, 120)');
   await page.screenshot({ path: testInfo.outputPath('selection.png') });
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
-  await expect(page.locator('.analysis-heading')).toContainText('Analiza zakończona');
+  await expect(page.locator('.analysis-heading')).toContainText('Powiązania znalezione');
   await expect(page.locator('.statusbar')).toContainText('Sprawdzono par: 3');
   await expect(page.locator('.check-part')).toHaveCount(3);
-  // A-B and B-C appear under both elements, but there are only two unique review records.
   await expect(page.locator('.relation-row')).toHaveCount(4);
-  await expect(page.locator('.review-progress strong')).toHaveText('0 / 2');
+  await expect(page.locator('.check-task')).toHaveCount(0);
+  await expect(page.locator('.checklist input[type=checkbox]')).toHaveCount(0);
+  await expect(page.locator('.review-progress')).toHaveCount(0);
+  await expect(page.getByLabel('Pokaż intersekcje', { exact: true })).toBeDisabled();
+  // Informational connections can still be inspected, without any manual rating.
+  await page.locator('.relation-row').first().click();
+  await expect(page.locator('.scene-label')).toContainText('Wybrane elementy');
+  await expect(page.locator('.review-card')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Wróć do całego modelu' }).click();
   const intersectionResponse = page.waitForResponse(response => response.url().includes('/intersection') && response.ok());
-  await page.getByLabel('Pokaż intersekcje', { exact: true }).check();
+  await page.getByRole('button', { name: 'Sprawdź intersekcje', exact: true }).click();
+  await expect(page.locator('.check-task')).toHaveCount(3);
+  await expect(page.locator('.check-task input:checked')).toHaveCount(0);
+  await expect(page.locator('.review-progress strong')).toHaveText('0 / 3');
   await expect(page.getByLabel('Pokaż intersekcje', { exact: true })).toBeChecked();
   await intersectionResponse;
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
   await page.screenshot({ path: testInfo.outputPath('analysis.png') });
+  await page.getByLabel('Pokaż intersekcje', { exact: true }).uncheck();
+  await page.getByLabel('Pokaż intersekcje', { exact: true }).check();
+  await expect(page.locator('.check-task')).toHaveCount(3);
   await page.locator('.relation-row').filter({ hasText: 'Intersekcja' }).first().click();
-  await expect(page.locator('.scene-label')).toContainText('Wybrane elementy');
   await expect(page.locator('.scene-label')).toContainText('Widoczne: 2/3');
-  await page.getByLabel('Twoja ocena', { exact: true }).selectOption('FIX');
-  await expect(page.locator('.review-progress strong')).toHaveText('1 / 2');
-  await expect(page.getByLabel('Twoja ocena', { exact: true })).toHaveValue('FIX');
-  await page.getByLabel('Notatka', { exact: true }).fill('Sprawdzić połączenie B-C');
-  await page.getByLabel('Notatka', { exact: true }).blur();
-  await expect(page.locator('.relation-row .review-status.fix')).toHaveCount(2);
-  await expect(page.getByLabel('Twoja ocena', { exact: true })).toHaveValue('FIX');
+  await expect(page.locator('.review-card')).toHaveCount(0);
+  const bTask = page.getByRole('checkbox', { name: 'Intersekcje: B.stl — sprawdzone', exact: true });
+  const cTask = page.getByRole('checkbox', { name: 'Intersekcje: C.stl — sprawdzone', exact: true });
+  await bTask.check();
+  await expect(page.locator('.review-progress strong')).toHaveText('1 / 3');
+  await expect(cTask).not.toBeChecked();
+  await page.getByRole('button', { name: 'Szczegóły kontroli B.stl', exact: true }).click();
+  await expect(page.getByLabel('Kontrola wykonana', { exact: true })).toBeChecked();
+  await page.getByLabel('Notatka do kontroli', { exact: true }).fill('Sprawdzono intersekcje elementu B');
+  await page.getByLabel('Notatka do kontroli', { exact: true }).blur();
   await page.screenshot({ path: testInfo.outputPath('review.png') });
-  await page.locator('.relation-row').filter({ hasText: 'Intersekcja' }).last().click();
-  await expect(page.getByLabel('Notatka', { exact: true })).toHaveValue('Sprawdzić połączenie B-C');
+  await page.getByRole('button', { name: 'Szczegóły kontroli C.stl', exact: true }).click();
+  await expect(page.getByLabel('Notatka do kontroli', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Kontrola wykonana', { exact: true })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Szczegóły kontroli B.stl', exact: true }).click();
+  await expect(page.getByLabel('Notatka do kontroli', { exact: true })).toHaveValue('Sprawdzono intersekcje elementu B');
   await page.getByRole('button', { name: 'Wróć do całego modelu' }).click();
   await page.getByTitle('Ukryj A.stl').click();
   await expect(page.locator('.scene-label')).toContainText('Widoczne: 2/3');
   await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
-  await expect(page.locator('.analysis-heading')).toContainText('Analiza zakończona');
-  // Hidden A must still be included in the full analysis.
+  await expect(page.locator('.analysis-heading')).toContainText('Powiązania znalezione');
   await expect(page.locator('.statusbar')).toContainText('Sprawdzono par: 3');
-  await expect(page.locator('.review-progress strong')).toHaveText('1 / 2');
+  await expect(page.locator('.review-progress strong')).toHaveText('1 / 3');
   await expect(page.getByLabel('Zakres sprawdzania', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
-  await expect(page.getByRole('status')).toContainText('Sprawdzono par: 3');
-  await expect(page.locator('.relation-row')).toHaveCount(4);
-  await expect(page.getByRole('checkbox')).toHaveCount(1);
   // Even with only one selected element, the action still checks all three pairs.
   await b.locator('.object-select').click();
   await expect(a).toHaveAttribute('data-selection', 'active');
@@ -111,6 +131,19 @@ test('model ABC: full analysis and independent viewport selection and list activ
   await expect(b.locator('.object-select')).toHaveAttribute('aria-pressed', 'true');
   await expect(b).toHaveAttribute('data-selection', 'selected');
   await expect(a).toHaveAttribute('data-selection', 'active');
+  await page.locator('input[type=file]').setInputFiles([stlBox('D.stl', 40)]);
+  await expect(page.locator('.object-row')).toHaveCount(4);
+  await expect(page.locator('.check-task')).toHaveCount(3);
+  await expect(page.locator('.check-task input:disabled')).toHaveCount(3);
+  await expect(page.locator('.check-task input:checked')).toHaveCount(0);
+  await expect(page.getByLabel('Pokaż intersekcje', { exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Sprawdź powiązania' }).click();
+  await expect(page.locator('.analysis-heading')).toContainText('Powiązania znalezione');
+  await expect(page.locator('.check-task input:disabled')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Sprawdź intersekcje', exact: true }).click();
+  await expect(page.locator('.check-task')).toHaveCount(4);
+  await expect(page.locator('.check-task input:disabled')).toHaveCount(0);
+  await expect(page.locator('.check-task input:checked')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -161,7 +194,8 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await far.click({ button: 'right' });
   const menu = page.getByRole('menu', { name: 'Opcje elementu far.stl' });
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole('menuitem')).toHaveCount(1);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Aktywuj', 'Usuń']);
+  await expect(page.locator('.object-row[data-selection=active]')).toHaveCount(0);
   await expect(page.locator('.object-row')).toHaveCount(3);
   // Escape dismisses without deleting and returns focus to the same object.
   await page.keyboard.press('Escape');
@@ -172,7 +206,7 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await page.locator('.objects .panel-heading').click();
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.locator('.object-row')).toHaveCount(3);
-  // Keyboard context menu offers the same single delete command.
+  // Keyboard context menu offers the same alphabetically ordered actions.
   await far.locator('.object-select').focus();
   await page.keyboard.press('Shift+F10');
   await expect(menu).toBeVisible();
@@ -181,7 +215,11 @@ test('separated parts are not proposed as related; all elements remain on checkl
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.check-part')).toHaveCount(2);
   await expect(right).toHaveAttribute('data-selection', 'selected');
-  // Only right-click activates; deleting the active object does not activate another one.
+  // Opening a menu never activates. Explicit activation and deletion are separate actions.
+  await right.click({ button: 'right' });
+  await expect(right).toHaveAttribute('data-selection', 'selected');
+  await page.getByRole('menu', { name: 'Opcje elementu right.stl' }).getByRole('menuitem', { name: 'Aktywuj', exact: true }).click();
+  await expect(right).toHaveAttribute('data-selection', 'active');
   await right.click({ button: 'right' });
   await page.getByRole('menu', { name: 'Opcje elementu right.stl' }).getByRole('menuitem', { name: 'Usuń', exact: true }).click();
   await expect(page.locator('.object-row')).toHaveCount(1);

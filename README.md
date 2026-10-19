@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.5
+# ModelCheck 3D — prototyp 0.6
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.5 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs jest prostym edytorem z systemową czcionką, szarymi panelami i płaskimi przyciskami. Numer wersji 0.6 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.5**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.6**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Aplikacja po instalacji działa bez Internetu; czcionki też są lokalne. Serwer nasłuchuje tylko na tym komputerze, domyślnie na porcie 8000. Gdy port jest zajęty, uruchom `.venv\Scripts\python.exe run.py --port 8001`.
 
@@ -31,29 +31,39 @@ Pakiety silnika są dostępne dla Windows / Python 3.12 x64. Bieżący prototyp 
 
 ## Jak sprawdzić model
 
-1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Po lewej zobaczysz wszystkie elementy, pośrodku złożony model. Pliki zachowują swoje współrzędne i skalę. Przyjmujemy 1 jednostkę STL = 1 mm.
-2. **Sprawdź powiązania** — analiza zawsze sprawdza wszystkie wczytane części, również ukryte. Nie ma wyboru zakresu ani analizy samych zaznaczonych elementów.
-3. **Powiązania i checklista** — przy każdym elemencie znajdziesz listę „Powiązany z”. Powiązanie oznacza bezpośrednie dotykanie się części lub ich przenikanie. Element bez powiązań też pozostaje na checkliście. Samo bliskie położenie oddzielonych części nie tworzy powiązania.
-4. **Pokaż intersekcje** — włącz, gdy chcesz obejrzeć czerwone regiony przenikania. Domyślnie są wyłączone. Podświetlamy wspólną objętość, a nie całe części. Otaczające elementy stają się przezroczyste, aby odsłonić wewnętrzne obszary. Zaznaczenie nie ogranicza wyników intersekcji; podświetlane są wyniki dla wszystkich widocznych części.
-5. **Wybierz parę na checkliście** — pozostałe części zostaną ukryte, a kamera dopasowana do tej pary. Wybierz ręcznie **Do sprawdzenia / OK / Wymaga poprawki** i dodaj notatkę. Zmiana notatki jest stosowana po wyjściu z pola. Status i notatka są wspólne dla obu elementów; wynik analizy nie ustawia automatycznie „OK”.
-6. **Usuń element** — kliknij jego wiersz na liście obiektów prawym przyciskiem i wybierz **Usuń**. Przy nazwie pozostaje tylko oczko widoczności. Menu można też otworzyć klawiszami Shift+F10; Escape lub kliknięcie poza menu zamyka je bez usuwania. Usunięcie dotyczy wskazanego elementu, także gdy zaznaczonych jest kilka części. W czasie przetwarzania polecenie jest niedostępne.
-7. **Pokaż cały model** — przywróć wszystkie części. Wybór elementu na liście lub w 3D odsłania jego pozycję na checkliście. Nazwy powiązanych części są sortowane alfabetycznie z uwzględnieniem numerów.
+1. **Wczytaj STL** — wybierz osobne pliki części lub przeciągnij je do okna. Zachowujemy ich współrzędne i skalę; 1 jednostka STL = 1 mm.
+2. **Sprawdź powiązania** — program informuje, które części bezpośrednio się łączą. Lista „Powiązany z” jest wyłącznie informacyjna: nie ma ocen OK, notatek do par ani obowiązku odhaczania połączeń. Kliknięcie pary pozwala obejrzeć ją w izolacji. Wszystkie wczytane elementy pozostają na liście, również bez połączeń.
+3. **Sprawdź intersekcje** — uruchamia konkretną kontrolę. Dopiero wtedy przy każdym elemencie pojawia się zadanie **Intersekcje sprawdzone**. Wynik mówi o wykrytych intersekcjach, ich braku lub niepewności. Żadne zadanie nie odhacza się automatycznie.
+4. Po ręcznej kontroli elementu odhacz jego zadanie. **Szczegóły** otwierają wynik i notatkę dotyczącą kontroli tego elementu. Każdy element ma własne zadanie; sprawdzenie B nie odhacza C.
+5. **Pokaż intersekcje** zmienia tylko widoczność wyników już uruchomionej kontroli. Czerwona, matowa geometria pokazuje wspólną objętość. Otaczające części są przezroczyste, by odsłonić wnętrze. Samo przełączanie widoczności nie tworzy dodatkowych zadań.
+6. **Pokaż cały model** przywraca wszystkie części i dopasowuje kamerę do całości.
 
-Każda analiza sprawdza wszystkie unikalne pary. Przy niezmienionych plikach zachowuje ręczne oceny i notatki. Zaznaczanie, aktywacja i izolacja zmieniają wyłącznie obsługę widoku, a nie zakres analizy. Po dodaniu części ponownie uruchom sprawdzanie, aby znaleźć ich powiązania.
+Oba polecenia analizy obejmują zawsze cały model, również ukryte części. Zaznaczenie i izolacja wpływają tylko na widok. Możesz od razu uruchomić **Sprawdź intersekcje**, bez osobnego uruchamiania powiązań — kontrola uzupełni również tę informację.
 
-W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, a B i C mają też intersekcję. A i C są rozdzielone. Możesz od razu użyć własnych STL.
+Ponowne uruchomienie kontroli na niezmienionych danych zachowuje odhaczenia i notatki. Dodanie lub usunięcie części oznacza wcześniejsze zadania jako **nieaktualne**, usuwa ich odhaczenia i blokuje ponowne odhaczanie do czasu uruchomienia kontroli. Notatki istniejących elementów pozostają. Nowy element otrzyma zadanie dopiero po uruchomieniu kontroli.
 
-## Zaznaczanie i aktywacja
+W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, B–C mają intersekcję, A i C są rozdzielone.
 
-**Viewport 3D i checklista:** nieaktywne i niezaznaczone części są szare, nieaktywne zaznaczone są zielone, aktywna część jest beżowa. Lewy przycisk zaznacza; Shift + klik dodaje lub odejmuje części. Kliknięcie modelu w 3D nie aktywuje obiektu na liście.
+## Menu obiektu i kolory
 
-**Lista obiektów po lewej:** prawy przycisk ustawia aktywny obiekt i otwiera menu „Usuń”. Aktywny wiersz i model 3D tego obiektu są beżowe. Samo aktywowanie nie dodaje ani nie usuwa części z zaznaczenia. Lewy przycisk na liście zaznacza na zielono, ale nie zmienia aktywnego obiektu. Shift+F10 jest klawiaturowym odpowiednikiem prawego przycisku.
+Prawy przycisk na lewej liście **tylko otwiera menu**. Polecenia są sortowane alfabetycznie:
 
-Aktywny obiekt pozostaje aktywny do wskazania innego prawym przyciskiem lub usunięcia. Odznaczenie wszystkich nie zmienia aktywnego obiektu. Usunięcie aktywnego obiektu nie aktywuje automatycznie kolejnego. Kliknięcie aktywnego modelu lewym przyciskiem nie usuwa jego aktywacji — pozostaje beżowy.
+- **Aktywuj** — ustawia aktywny obiekt, beżowy również w 3D.
+- **Usuń** — usuwa wskazaną część z bieżącego modelu; jest niedostępne podczas przetwarzania.
 
-Intersekcje nadal są czerwone i pojawiają się po włączeniu „Pokaż intersekcje”.
+Samo otwarcie lub zamknięcie menu nie zmienia aktywnego obiektu. Shift+F10 otwiera to samo menu; strzałki, Home i End wybierają pozycję, Enter wykonuje polecenie, Escape zamyka menu.
 
-![Zielone zaznaczenie i beżowy obiekt aktywowany prawym przyciskiem](docs/selection.png)
+Lewy przycisk zaznacza, Shift + klik dodaje lub odejmuje części. Nie aktywuje obiektu. Aktywacja pozostaje niezależna od zaznaczenia; usunięcie aktywnego obiektu nie aktywuje następnego.
+
+| Stan obiektu | Kolor |
+| --- | --- |
+| Nieaktywny i niezaznaczony | Ciemnoszary |
+| Nieaktywny i zaznaczony | Przygaszony zielony |
+| Aktywny | Ciemny beż |
+
+Materiały mają maksymalną chropowatość, bez metaliczności. Oświetlenie i odwzorowanie tonalne ograniczają jaskrawość; intersekcje pozostają matowo czerwone.
+
+![Ciemniejsze, matowe kolory elementów](docs/selection.png)
 
 ## Sterowanie
 
@@ -65,7 +75,7 @@ Intersekcje nadal są czerwone i pojawiają się po włączeniu „Pokaż inters
 | Klik w model lub nazwę | Wybór elementu |
 | Shift / Ctrl + klik | Wiele elementów |
 | Ikona oka | Ukrywanie i pokazywanie części |
-| Prawy przycisk na liście | Aktywacja obiektu i menu „Usuń” |
+| Prawy przycisk na liście | Menu „Aktywuj”, „Usuń” |
 | Izoluj wybrane | Widok samych zaznaczonych części |
 | Dopasuj widok / dwuklik | Dopasowanie kamery |
 
@@ -75,7 +85,7 @@ Części są nieruchome; warianty geometrii przygotuj w Blenderze.
 
 - Lista powiązań wynika z rzeczywistej geometrii. AABB służy tylko do odrzucania dalekich par. FCL sprawdza powierzchnie, a Manifold3D / Mesh64 oblicza wspólną objętość brył.
 - Obsługujemy częściowe przenikanie, całkowite zawieranie oraz wiele rozłącznych regionów intersekcji. Nieprawidłowa siatka, błąd obliczeń lub wynik graniczny otrzymują **Wymaga weryfikacji**. Takiej pary nie opisujemy jako pewnego powiązania.
-- Wewnętrzna tolerancja obliczeniowa bezpośredniego połączenia to 0,00001 mm. Nie jest tolerancją produkcyjną. Punktowy i krawędziowy kontakt też stanowi powiązanie wymagające ręcznej oceny.
+- Wewnętrzna tolerancja obliczeniowa bezpośredniego połączenia to 0,00001 mm. Nie jest tolerancją produkcyjną. Punktowy i krawędziowy kontakt też trafia na informacyjną listę powiązań. Poprawność technologiczna nie jest oceniana automatycznie.
 - Skrajnie małe objętości przecięcia (≤ max(10⁻¹² mm³, 10⁻¹⁰ objętości mniejszej części)) są niepewne. Nie gwarantujemy wykrycia wszystkich samoprzecięć i wad topologii. Nie naprawiamy automatycznie siatek; scalanie powtarzających się wierzchołków wykonujemy na kopii roboczej, bez przesuwania współrzędnych.
 - Limit importu: 100 MiB na plik i 100 części na sesję. Wydajność rzeczywistych modeli 100 MB nie została jeszcze zmierzona. Pamięć potrzebna na obliczenia i GPU jest większa niż rozmiar samego STL.
 - Analiza działa w tle z licznikiem par. Nie ma jeszcze anulowania pojedynczej długiej operacji Boolean.
@@ -113,4 +123,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, wspólne oceny par, niezależną aktywację oraz analizę całego modelu.
+Możesz wskazać istniejący Chromium zmienną `CHROMIUM_PATH`. Testy obejmują analizę powiązań i intersekcji, zawieranie, wiele regionów, odseparowane i nieprawidłowe siatki, zachowanie współrzędnych, import, kamerę, izolację, checklistę, informacyjny charakter powiązań, tworzenie zadań wyłącznie po uruchomieniu kontroli, nieaktualność po zmianach modelu, alfabetyczne menu oraz analizę całego modelu.

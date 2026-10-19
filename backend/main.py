@@ -3,6 +3,7 @@ from itertools import combinations
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
+from typing import Literal
 import tempfile
 import time
 
@@ -14,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
 
-app = FastAPI(title='ModelCheck 3D', version='0.5.0')
+app = FastAPI(title='ModelCheck 3D', version='0.6.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -22,12 +23,14 @@ LIMIT = 100 * 1024 * 1024
 
 
 class AnalysisRequest(BaseModel):
+    check: Literal['RELATIONS', 'INTERSECTIONS'] = 'RELATIONS'
     model_config = ConfigDict(extra='forbid')
 
 
-class Review(BaseModel):
-    status: str = 'TODO'
+class TaskReview(BaseModel):
+    done: bool = Field(strict=True)
     note: str = Field(default='', max_length=5000)
+    model_config = ConfigDict(extra='forbid')
 
 
 def session_for(sid):
@@ -41,12 +44,18 @@ def idle(session):
         raise HTTPException(409, 'Poczekaj na zakończenie bieżącej operacji.')
 
 
+def invalidate_tasks(session):
+    for task in session['tasks'].values():
+        task.update(stale=True, done=False)
+
+
 def add_part(session, mesh, name, size):
     shape = prepare(mesh)
     pid = uuid4().hex
     meta = {'id': pid, 'name': name, 'size': size, 'faces': len(shape.mesh.faces),
             'solid': shape.solid, 'bounds': shape.mesh.bounds.tolist()}
     session['parts'][pid] = {'meta': meta, 'shape': shape}
+    invalidate_tasks(session)
     return meta
 
 
@@ -59,7 +68,7 @@ def health():
 def create_session():
     sid = uuid4().hex
     with lock:
-        sessions[sid] = {'parts': {}, 'relations': {}, 'busy': False, 'job': None}
+        sessions[sid] = {'parts': {}, 'relations': {}, 'tasks': {}, 'busy': False, 'job': None}
     return {'id': sid}
 
 
@@ -145,6 +154,8 @@ def delete_part(sid: str, pid: str):
         if pid not in session['parts']:
             raise HTTPException(404, 'Brak części.')
         del session['parts'][pid]
+        session['tasks'] = {tid: task for tid, task in session['tasks'].items() if task['part_id'] != pid}
+        invalidate_tasks(session)
         session['relations'] = {key: rel for key, rel in session['relations'].items() if pid not in rel['part_ids']}
     return {'ok': True}
 
@@ -156,12 +167,23 @@ def run_analysis(session, ids, job):
         for i, (a, b) in enumerate(pairs):
             metadata, common = analyze_pair(session['parts'][a]['shape'], session['parts'][b]['shape'])
             rid = ':'.join(sorted([a, b]))
-            previous = session['relations'].get(rid, {})
-            results[rid] = {'id': rid, 'part_ids': [a, b], **metadata,
-                            'status': previous.get('status', 'TODO'), 'note': previous.get('note', ''),
-                            '_mesh': common}
+            results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
             job['completed'] = i + 1
         session['relations'].update(results)
+        if job['check'] == 'INTERSECTIONS':
+            tasks = {}
+            for pid in ids:
+                related = [row for row in results.values() if pid in row['part_ids']]
+                intersections = sum(row['kind'] == 'INTERSECTION' for row in related)
+                uncertain = sum(row['kind'] == 'UNCERTAIN' for row in related)
+                tid = f'INTERSECTIONS:{pid}'
+                previous = session['tasks'].get(tid, {})
+                tasks[tid] = {'id': tid, 'part_id': pid, 'check': 'INTERSECTIONS',
+                              'done': previous.get('done', False) if not previous.get('stale') else False,
+                              'note': previous.get('note', ''), 'stale': False,
+                              'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'CLEAR',
+                              'intersections': intersections, 'uncertain_pairs': uncertain}
+            session['tasks'].update(tasks)
         job['state'] = 'done'
     except Exception:
         job['state'] = 'error'; job['error'] = 'Nie udało się zakończyć analizy. Spróbuj mniejszego zestawu części.'
@@ -178,7 +200,7 @@ def start_analysis(sid: str, request: AnalysisRequest):
         if len(ids) < 2:
             raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
-        job = {'id': uuid4().hex, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
+        job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
                'seconds': 0, '_start': time.monotonic(), 'error': None}
         session['job'] = job
         executor.submit(run_analysis, session, ids, job)
@@ -190,19 +212,20 @@ def analysis_state(sid: str):
     session = session_for(sid)
     job = session['job']
     return {'job': {k: v for k, v in job.items() if not k.startswith('_')} if job else None,
-            'relations': [{k: v for k, v in row.items() if not k.startswith('_')} for row in session['relations'].values()]}
+            'relations': [{k: v for k, v in row.items() if not k.startswith('_')} for row in session['relations'].values()],
+            'tasks': list(session['tasks'].values())}
 
 
-@app.patch('/api/sessions/{sid}/relations/{rid}')
-def update_review(sid: str, rid: str, review: Review):
+@app.patch('/api/sessions/{sid}/tasks/{tid}')
+def update_task(sid: str, tid: str, review: TaskReview):
     with lock:
         session = session_for(sid); idle(session)
-        row = session['relations'].get(rid)
-        if not row:
-            raise HTTPException(404, 'Brak pary.')
-        if review.status not in ['TODO', 'OK', 'FIX']:
-            raise HTTPException(400, 'Nieprawidłowy status.')
-        row.update(status=review.status, note=review.note)
+        task = session['tasks'].get(tid)
+        if not task:
+            raise HTTPException(404, 'Brak zadania. Najpierw uruchom kontrolę.')
+        if task['stale']:
+            raise HTTPException(409, 'Model zmieniony. Najpierw ponownie uruchom kontrolę intersekcji.')
+        task.update(done=review.done, note=review.note)
     return {'ok': True}
 
 

@@ -46,6 +46,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     catch { latest.current.onError('Nie można uruchomić WebGL. Włącz akcelerację sprzętową w przeglądarce.'); return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = .9;
     container.appendChild(renderer.domElement);
     let dirty = true;
     const invalidate = () => { dirty = true; };
@@ -56,9 +58,9 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     controls.mouseButtons.RIGHT = null;
     controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
     controls.screenSpacePanning = true;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x656565, 2.5));
-    const key = new THREE.DirectionalLight(0xffffff, 3); key.position.set(20, -30, 60); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 1); fill.position.set(-30, 10, 10); scene.add(fill);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x656565, 1.7));
+    const key = new THREE.DirectionalLight(0xffffff, 2); key.position.set(20, -30, 60); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, .6); fill.position.set(-30, 10, 10); scene.add(fill);
     const grid = new THREE.GridHelper(80, 40, 0x727272, 0x565656);
     grid.rotateX(Math.PI / 2); scene.add(grid);
     const axes = new THREE.AxesHelper(12); scene.add(axes);
@@ -134,7 +136,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
           const geometry = loader.parse(await response.arrayBuffer());
           if (cancelled) { geometry.dispose(); return; }
           geometry.computeBoundingSphere();
-          const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: partColors.idle, roughness: .6, metalness: 0, side: THREE.DoubleSide }));
+          const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: partColors.idle, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
           mesh.userData.id = part.id; e.meshes.set(part.id, mesh); e.scene.add(mesh);
           applyMaterials();
           latest.current.onLoaded(e.meshes.size);
@@ -178,7 +180,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
             if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
             const geometry = loader.parse(await response.arrayBuffer());
             if (cancelled) { geometry.dispose(); return; }
-            const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#ff4949', emissive: '#b51e27', emissiveIntensity: .6, roughness: .45, side: THREE.DoubleSide }));
+            const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#b34343', emissive: '#541818', emissiveIntensity: .15, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
             mesh.renderOrder = 5; e.overlays.add(mesh); e.invalidate();
           } catch (error) { if (!cancelled) latest.current.onError(`Nie udało się wyświetlić przecięcia: ${String(error)}`); }
         }

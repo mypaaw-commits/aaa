@@ -44,8 +44,8 @@ h2 { font-size: 14px; font-weight: 600; }
 .object-list { flex: 1; overflow: auto; min-height: 60px; padding-bottom: 8px; }
 .object-row { display: flex; align-items: center; min-height: 33px; padding: 0 5px 0 8px; border-top: 1px solid transparent; border-bottom: 1px solid transparent; }
 .object-row:hover { background: #d8d8d8; }
-.object-row.selected { background: #cfe2c8; border-color: #acc2a3; }
-.object-row.active-part { background: #e5d6bb; border-color: #c4b291; }
+.object-row.selected { background: #bdc8b8; border-color: #94a08d; }
+.object-row.active-part { background: #c9bfae; border-color: #ac9e86; }
 .object-row.active-part .object-select { font-weight: 600; }
 .active-object { color: #444; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .object-select { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; align-self: stretch; text-align: left; padding: 5px 3px; }
@@ -100,8 +100,8 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
 .check-part-heading { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; text-align: left; background: #d9d9d9; }
 .check-part-heading:hover { background: #cecece; }
 .check-part-heading > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 600; }
-.check-part.highlight .check-part-heading { background: #cfe2c8; }
-.check-part.active-part .check-part-heading { background: #e5d6bb; }
+.check-part.highlight .check-part-heading { background: #bdc8b8; }
+.check-part.active-part .check-part-heading { background: #c9bfae; }
 .check-part-relations { padding: 0 7px 5px 16px; }
 .relation-list-label { color: #5c5c5c; font-size: 12px; padding: 7px 4px 2px; }
 .relation-row { width: 100%; padding: 7px 5px; border: 1px solid transparent; border-bottom-color: #c8c8c8; text-align: left; }
@@ -113,24 +113,15 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
 .relation-kind { font-size: 12px; color: #626262; flex-shrink: 0; }
 .relation-kind.intersection { color: #a52525; font-weight: 600; }
 .relation-kind.uncertain { color: #865b16; }
-.review-status { display: flex; gap: 6px; align-items: center; color: #666; font-size: 12px; margin-top: 4px; }
-.review-status > svg:last-child { margin-left: auto; }
-.review-status.ok { color: #326339; }
-.review-status.fix { color: #87521b; }
-.status-circle { width: 9px; height: 9px; border: 1px solid #888; border-radius: 50%; }
 .no-relations, .partial-analysis { font-size: 12px; line-height: 1.6; color: #666; padding: 8px 5px; }
 .partial-analysis { color: #7b622c; }
 .review-card { padding: 10px 12px; border-top: 1px solid #8c8c8c; background: #ddd; max-height: 48%; overflow: auto; flex-shrink: 0; }
 .review-heading { display: flex; align-items: center; justify-content: space-between; }
 .review-heading h3 { font-size: 14px; font-weight: 600; }
-.pair-names { font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
-.pair-names > span { margin: 0 4px; color: #666; }
 .result-banner { margin-top: 4px; font-size: 13px; color: #555; }
 .result-banner.intersection { color: #a52525; font-weight: 600; }
 .result-banner.uncertain { color: #865b16; }
-.result-explanation { font-size: 12px; line-height: 1.6; color: #715b2b; margin-top: 5px; }
 .field-label { display: block; font-size: 13px; margin: 9px 0 5px; }
-.review-card select { width: 100%; }
 .review-card textarea { width: 100%; min-height: 60px; max-height: 150px; padding: 6px; border: 1px solid #999; border-radius: 1px; background: #f8f8f8; resize: vertical; line-height: 1.5; }
 .microcopy { color: #666; font-size: 11px; margin-top: 5px; line-height: 1.6; }
 .statusbar { min-height: 28px; height: 28px; padding: 0 10px; display: flex; align-items: center; gap: 20px; border-top: 1px solid #aaa; background: #d1d1d1; color: #535353; font-size: 12px; }
@@ -168,3 +159,10 @@ progress { display: block; width: 100%; height: 7px; margin-top: 8px; accent-col
   .review-card { max-height: 52%; }
   .welcome p { margin-bottom: 12px; }
 }
+
+.check-task { padding: 8px 5px; margin-top: 6px; border-top: 1px solid #b7b7b7; }
+.task-line { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.task-line label, .task-confirm { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.check-task p { font-size: 12px; color: #5d5d5d; line-height: 1.6; margin-top: 4px; }
+.check-task .task-warning { color: #80591f; }
+.task-confirm { margin: 12px 0 8px; }
