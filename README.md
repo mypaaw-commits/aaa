@@ -1,6 +1,6 @@
-# ModelCheck 3D — prototyp 0.10
+# ModelCheck 3D — prototyp 0.11
 
-Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.10 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
+Lokalna aplikacja do sprawdzania **powiązań części STL i intersekcji**. Widok 3D działa podobnie do Blendera, a checklista zawiera wszystkie wczytane elementy. Interfejs ma grafitowy nagłówek, jasne panele, stonowany akcent koloru i systemową czcionkę. Lista obiektów korzysta z zasad zaznaczania znanych z Eksploratora Windows; kamera z zasad Blendera. Numer wersji 0.11 jest widoczny w nagłówku. Usunięto osobne kategorie styków i szczelin, ich znaczniki oraz próg odległości.
 
 ![Uproszczony interfejs: lista elementów, model 3D i powiązania części](docs/modelcheck3d.png)
 
@@ -13,7 +13,7 @@ Wymagane: **Python 3.12, 64-bit** z launcherem `py` oraz **Node.js 22 lub 24** z
 3. Uruchom `start.cmd`. Aplikacja otworzy się w przeglądarce.
 4. Pozostaw okno serwera otwarte. Ctrl+C kończy jego pracę.
 
-**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.10**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
+**Aktualizacja ze starszej wersji:** zakończ poprzedni serwer klawiszami Ctrl+C w jego oknie, rozpakuj nowy ZIP do osobnego folderu i uruchom w nim `setup.cmd`, a potem `start.cmd`. W nagłówku otwartej aplikacji powinno być **0.11**. Stary działający proces nie wczyta automatycznie nowego silnika analizy.
 
 Jeżeli poprzednia kopia nadal zajmuje port 8000, nowy launcher wybierze wolny port i otworzy nową kopię. Korzystaj z okna przeglądarki otwartego przez nowy `start.cmd`; stara zakładka pozostaje połączona z poprzednią wersją. Adres nowej kopii jest również wypisywany w oknie uruchamiania. Strona startowa nie jest przechowywana w pamięci podręcznej przeglądarki.
 
@@ -44,7 +44,9 @@ Oba polecenia analizy obejmują zawsze cały model, również ukryte części. Z
 
 Ponowne uruchomienie kontroli na niezmienionych danych zachowuje odhaczenia i notatki. Dodanie lub usunięcie części oznacza wcześniejsze zadania jako **nieaktualne**, usuwa ich odhaczenia i blokuje ponowne odhaczanie do czasu uruchomienia kontroli. Notatki istniejących elementów pozostają. Nowy element otrzyma zadanie dopiero po uruchomieniu kontroli.
 
-W pustym widoku dostępny jest przykład A/B/C: A łączy się z B, B z C, B–C mają intersekcję, A i C są rozdzielone.
+Pusty widok zawiera przycisk wyboru własnych plików STL. Przykłady A/B/C na zrzutach dokumentacji są zestawem testowym; odnośnik do demonstracji został usunięty z interfejsu.
+
+![Pusty widok z czytelnym przyciskiem wyboru plików STL](docs/empty-view.png)
 
 ![Zbliżenie pary z intersekcją i przyciski w zakładce Kontrole](docs/intersection-closeup.png)
 
@@ -89,7 +91,7 @@ Kolory są nieco jaśniejsze niż w wersji 0.6. Materiały mają maksymalną chr
 
 Przycisk **Podłoga** na pasku widoku 3D włącza lub wyłącza siatkę podłogi razem z osiami. Zmienia tylko podgląd; nie przesuwa modelu ani nie zmienia wyników kontroli. Dopasowanie kamery nie włącza ponownie wyłączonej podłogi. Ustawienie obowiązuje do odświeżenia strony.
 
-Interfejs 0.10 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
+Interfejs 0.11 ma grafitowy nagłówek, jasne panele z delikatnymi zaokrągleniami i stonowany akcent morski. Dolne narzędzia listy mają stałą wysokość, aby zaznaczanie nie przesuwało jej zawartości. Pasek sterowania widokiem jest oddzielony od poleceń analizy. Aktywne i zaznaczone części mają kolorowe znaczniki na lewej liście. Prawy panel rozdziela informacyjne powiązania i checklistę kontroli; jego obsługa nie zaznacza elementów w 3D. Checklista pokazuje również pasek postępu ręcznego sprawdzania.
 
 ## Sterowanie
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { stlBox } from './fixtures';
 
 test('model ABC: full analysis and independent viewport selection and list activation', async ({ page }, testInfo) => {
   const errors: string[] = [];
@@ -6,7 +7,9 @@ test('model ABC: full analysis and independent viewport selection and list activ
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Brak modelu' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('empty.png') });
-  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await expect(page.getByRole('button', { name: 'Wybierz pliki STL', exact: true })).toBeEnabled();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Wybierz pliki STL', exact: true }).click()]);
+  await chooser.setFiles([stlBox('A.stl', -12, 8, -4), stlBox('B.stl', -4, 8, -4), stlBox('C.stl', 3.5, 8, -4)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await expect(page.locator('canvas')).toBeVisible();
@@ -202,12 +205,6 @@ test('model ABC: full analysis and independent viewport selection and list activ
   await expect(page.locator('.check-task input:checked')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
-
-function stlBox(name: string, x: number) {
-  const v = [[0,0,0],[2,0,0],[2,2,0],[0,2,0],[0,0,2],[2,0,2],[2,2,2],[0,2,2]];
-  const faces = [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]];
-  return { name, mimeType: 'model/stl', buffer: Buffer.from(`solid box\n${faces.map(face => `facet normal 0 0 0\nouter loop\n${face.map(i => `vertex ${v[i][0] + x} ${v[i][1]} ${v[i][2]}`).join('\n')}\nendloop\nendfacet`).join('\n')}\nendsolid box`) };
-}
 
 test('separated parts are not proposed as related; all elements remain on checklist', async ({ page }) => {
   await page.goto('/');

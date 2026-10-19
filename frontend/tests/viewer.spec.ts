@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { loadExample } from './fixtures';
 
 test('Camera centers the active object and keeps it as the orbit pivot', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await loadExample(page);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   const a = page.locator('.object-row').filter({ hasText: 'A.stl' });

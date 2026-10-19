@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { loadExample } from './fixtures';
 
 test('Explorer selection: Ctrl toggles, Shift ranges, keyboard and filtering', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await loadExample(page);
   const rows = page.locator('.object-row');
   await expect(rows).toHaveCount(3);
   const names = page.locator('.object-select');
@@ -49,7 +50,7 @@ test('Explorer selection: Ctrl toggles, Shift ranges, keyboard and filtering', a
 
 test('Object order changes by drag and keyboard without changing selection or checks', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await loadExample(page);
   const rows = page.locator('.object-row');
   await expect(rows).toHaveCount(3);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
@@ -104,7 +105,7 @@ test('Marquee scrolls a long list and stops when the mouse is released', async (
 
 test('Explorer marquee: replace, Ctrl toggle, cancel and blank click preserve activation', async ({ page }, testInfo) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /Wypróbuj przykład/ }).click();
+  await loadExample(page);
   const rows = page.locator('.object-row');
   await expect(rows).toHaveCount(3);
   await rows.nth(0).click({ button: 'right' });

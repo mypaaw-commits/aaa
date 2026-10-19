@@ -121,13 +121,6 @@ export default function App() {
     } catch (err) { setError((err as Error).message); setNotice(''); }
     finally { setLoading(false); if (fileInput.current) fileInput.current.value = ''; }
   }
-  async function demo() {
-    if (busy || !session) return;
-    setLoading(true); setError('');
-    try { await addImported(await api<Imported>(`/sessions/${session}/demo`, { method: 'POST' })); }
-    catch (err) { setError((err as Error).message); }
-    finally { setLoading(false); }
-  }
   async function analyze(check: CheckKind = 'RELATIONS') {
     setLoading(true); setError(''); setNotice('');
     try {
@@ -233,7 +226,7 @@ export default function App() {
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
 
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.10</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.11</span></div>
       <div className="header-actions">
         <button className="button secondary help-button" onClick={() => setHelp(true)}><CircleHelp size={16} />Pomoc</button>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />Wczytaj STL</button>
@@ -279,7 +272,7 @@ export default function App() {
           <div className="view-controls"><button className="floor-toggle" aria-label="Podłoga" aria-pressed={floor} title="Pokaż lub ukryj siatkę podłogi i osie" onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />Podłoga</button><button title="Dopasuj kamerę do widocznych części" onClick={() => viewer.current?.fit()}><Maximize size={17} />Dopasuj widok</button><div className="axis-controls"><button title="Widok z przodu" onClick={() => viewer.current?.view('y')}>Przód</button><button title="Widok z góry" onClick={() => viewer.current?.view('z')}>Góra</button><button title="Widok perspektywiczny" onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
           </div>
           <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} activePartId={activePartId} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} onSelect={select} onError={setError} onLoaded={setLoaded} />
-          {!parts.length && <div className="welcome"><h1>Brak modelu</h1><p>Wczytaj pliki STL lub przeciągnij je do okna.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}>Wybierz pliki STL</button><button className="text-button" disabled={busy || !session} onClick={() => void demo()}>Wypróbuj przykład A / B / C</button></div>}
+          {!parts.length && <div className="welcome"><h1>Brak modelu</h1><p>Wczytaj pliki STL lub przeciągnij je do okna.</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}> <Upload size={17} />Wybierz pliki STL</button></div>}
           {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />Wczytywanie widoku 3D: {loaded}/{parts.length}</div>}
           {isolated && <button className="exit-isolation button secondary" onClick={showAll}><ArrowLeft size={17} />Wróć do całego modelu</button>}
           {intersections && intersectionsReady && <p className="view-legend"><span />Czerwony obszar = intersekcja</p>}
