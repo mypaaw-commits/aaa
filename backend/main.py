@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 from backend.reports import checklist_pdf
 
-app = FastAPI(title='ModelCheck 3D', version='0.20.0')
+app = FastAPI(title='ModelCheck 3D', version='0.21.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -191,10 +191,18 @@ def run_analysis(session, ids, job):
     results = {}
     try:
         for i, (a, b) in enumerate(pairs):
-            shape_a, shape_b = session['parts'][a]['shape'], session['parts'][b]['shape']
-            metadata, common = analyze_pair(shape_a, shape_b)
             rid = ':'.join(sorted([a, b]))
-            results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
+            cached = session['relations'].get(rid)
+            # Imported shapes are immutable. Importing/deleting other parts or reviewing
+            # a checklist does not change this pair's geometry. Uncertain results retry.
+            if cached and cached['kind'] != 'UNCERTAIN' and cached['fit_tolerance'] == FIT_TOLERANCE:
+                results[rid] = cached
+                job['reused'] += 1
+            else:
+                shape_a, shape_b = session['parts'][a]['shape'], session['parts'][b]['shape']
+                metadata, common = analyze_pair(shape_a, shape_b)
+                results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
+                job['computed'] += 1
             job['completed'] = i + 1
         session['relations'].update(results)
         if job['check'] == 'INTERSECTIONS':
@@ -231,7 +239,8 @@ def start_analysis(sid: str, request: AnalysisRequest):
             raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
         job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
-               'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': FIT_TOLERANCE}
+               'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': FIT_TOLERANCE,
+               'reused': 0, 'computed': 0}
         session['job'] = job
         executor.submit(run_analysis, session, ids, job)
         return {key: val for key, val in job.items() if not key.startswith('_')}

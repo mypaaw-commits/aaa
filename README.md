@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.20
+# ModelCheck 3D — prototype 0.21
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.20**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.21**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -163,6 +163,21 @@ The viewport uses **Soft lighting** only: diffuse, balanced matte shading that f
 
 Ordinary selection and clicking a pair name do not move the camera. Pair framing and isolation explicitly change the view. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
+## Analysis performance
+
+Version 0.21 speeds up the fit-margin test without simplifying or moving imported meshes. A conservative geometric certificate handles typical shallow STL/Boolean roundoff; cases it cannot certify still use the original erosion test. The 0.001 mm margin is unchanged.
+
+Unchanged pairs reuse their geometry result across Find connections and Check intersections, including intersection overlays. Importing a part computes only its new pairs. Deleting another part, visibility, selection, list ordering and manual reviews leave the pair geometry unchanged. Uncertain results are retried. Manual checklists still require explicit review, and model edits still make existing reviews out of date.
+
+On a generated STL sphere/socket pair with 13,648 triangles, a measured cold analysis went from **16.75 s to 0.071 s**. A larger pair with 212,232 triangles took about **1.28 s** in the new version. Timings exclude fixture generation/import and browser polling and depend on geometry and hardware. Difficult cases that need the full erosion can still take longer.
+
+[Method, measurements and reproducible benchmark](docs/analysis-performance.md)
+
+```bash
+.venv/bin/python -m backend.benchmark_analysis --subdivisions 4
+.venv/bin/python -m backend.benchmark_analysis --subdivisions 6
+```
+
 ## Analysis and limits
 
 - FCL checks surfaces; Manifold3D / Mesh64 computes intersection volumes. Bounding boxes are used only to reject distant pairs.
@@ -194,4 +209,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

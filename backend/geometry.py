@@ -51,7 +51,38 @@ def tolerance_kernel(tolerance):
     return manifold3d.Manifold.sphere(tolerance, 16)
 
 
-def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: float) -> bool:
+@lru_cache(maxsize=8)
+def tolerance_probes(tolerance):
+    vertices = tolerance_kernel(tolerance).to_mesh64().vert_properties[:, :3]
+    # Opposite directions consecutively prune a surface patch before the next axis.
+    directions = np.array([sign * axis for axis in np.eye(3) for sign in (-1, 1)])
+    indices = dict.fromkeys(np.argmax(directions @ vertices.T, axis=1).tolist())
+    return tuple(tuple(float(value) for value in vertices[index]) for index in indices)
+
+
+def certifies_surface_band(source: Shape, common, tolerance: float) -> bool:
+    """Cheap sufficient test; a nonempty remainder proves nothing and needs the full erosion.
+
+    A⊖K is contained in every A-v for v in K. Intersecting common with a subset
+    of those translated solids therefore gives a SUPERSET of common∩(A⊖K).
+    If that superset is empty, the original erosion test is also empty. This
+    works for nonconvex meshes and disconnected overlaps, without simplifying
+    either source or replacing a geometric test with a volume threshold.
+    """
+    remaining = common
+    try:
+        for vertex in tolerance_probes(tolerance):
+            remaining = remaining ^ source.manifold.translate(tuple(-value for value in vertex))
+            if remaining.status() != manifold3d.Error.NoError:
+                return False  # The original exact test remains the fallback.
+            if remaining.is_empty():
+                return True
+    except (ValueError, RuntimeError):
+        return False
+    return False
+
+
+def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: float, solid_common) -> bool:
     smaller = min(abs(a.mesh.volume), abs(b.mesh.volume))
     if abs(common.volume) >= smaller * (1 - 1e-8):
         return False  # Containment of a small/thin part is never a fit.
@@ -59,6 +90,8 @@ def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: flo
         return False  # Cheap candidate filter; acceptance requires both tests below.
     for source, other in sorted(((a, b), (b, a)), key=lambda pair: len(pair[0].mesh.faces)):
         if tolerance not in source.cores:
+            if certifies_surface_band(source, solid_common, tolerance):
+                continue
             core = source.manifold.minkowski_difference(tolerance_kernel(tolerance))
             if core.status() != manifold3d.Error.NoError:
                 raise ValueError('Nie można zweryfikować marginesu dopasowania.')
@@ -102,7 +135,7 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
                 coincident = (difference_a.status() == manifold3d.Error.NoError
                               and difference_b.status() == manifold3d.Error.NoError
                               and difference_a.is_empty() and difference_b.is_empty())
-            if not coincident and tolerance > 0 and within_tolerance(a, b, common, tolerance):
+            if not coincident and tolerance > 0 and within_tolerance(a, b, common, tolerance, solid_common):
                 return {**base, 'kind': 'WITHIN_TOLERANCE', 'volume': volume,
                         'message': 'Dopasowanie w przyjętym marginesie. Wynik nie jest liczony jako intersekcja.'}, common
             # Borderline volumes remain uncertain unless the fit was verified.
