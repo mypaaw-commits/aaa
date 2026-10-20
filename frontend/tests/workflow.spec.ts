@@ -39,9 +39,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.getByRole('tab', { name: 'Checks', exact: true }).press('ArrowLeft');
   await expect(page.getByRole('tab', { name: 'Connections', exact: true })).toBeFocused();
   expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);
-  await page.getByRole('button', { name: 'Zoom to pair: A.stl / B.stl', exact: true }).click();
-  await expect(page.locator('.scene-label')).toContainText('3 / 3 visible');
-  await page.getByRole('button', { name: 'Isolate pair: A.stl / B.stl', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Zoom to pair: A.stl / B.stl', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Inspect pair: A.stl / B.stl', exact: true }).click();
   await expect(page.locator('.scene-label')).toContainText('2 / 3 visible');
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath('selected-pair.png') });
@@ -99,7 +98,7 @@ test('Three overlapping objects group checks and keep a unique pair total', asyn
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(3);
-  await expect(page.locator('.check-section-toggle .count')).toHaveText('3 pairs');
+  await expect(page.locator('.check-section-toggle .count')).toHaveText('3');
   await page.getByRole('button', { name: 'Intersections of base.stl', exact: true }).click();
   await expect(page.locator('.checks-pairs-section .result-pair')).toHaveCount(2);
   await expect(page.locator('.review-row')).toHaveCount(3);

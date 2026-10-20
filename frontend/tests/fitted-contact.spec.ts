@@ -47,6 +47,7 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   await expect.poll(async () => (await viewPixels(page)).teal).toBe(0);
   expect(Buffer.compare(image, await page.locator('canvas').screenshot())).toBe(0);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Within tolerance', exact: true }).click();
   await page.getByRole('button', { name: 'Intersections of key.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .pair-status.withinTolerance')).toHaveText('Within tolerance');
   await page.getByRole('button', { name: 'Inspect pair: key.stl / socket.stl', exact: true }).click();

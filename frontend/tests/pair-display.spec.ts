@@ -46,7 +46,7 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
     await expect(row.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
   }
   await expect(page.locator('.object-row').filter({ hasText: 'other.stl' })).toHaveAttribute('aria-selected', 'false');
-  await page.getByRole('button', { name: 'Isolate pair: copy.stl / original.stl', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect pair: copy.stl / original.stl', exact: true }).click();
   await expect(page.locator('.scene-label')).toContainText('2 / 3 visible');
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
   await expect(page.locator('.review-status.has-coincident')).toHaveCount(2);

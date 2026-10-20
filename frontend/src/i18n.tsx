@@ -42,6 +42,10 @@ const en = {
   unselected: 'Not selected', selectionLegend: 'Selected', colorLegend: 'View colors',
   withinTolerance: 'Within tolerance', withinToleranceCount: '{count} within tolerance',
   fitMargin: 'Fit margin: {value} mm', fitMarginTip: 'Teal regions are within the fit margin and are counted separately from intersections.',
+  directConnections: 'Direct connections', runCheckHint: 'Run Check intersections to see the results.',
+  reviewScope: 'Intersection review', reviewComplete: 'All parts reviewed', partsRemaining: '{count} parts left to review',
+  exportPdf: 'Export PDF', exportingPdf: 'Preparing PDF…', exportFailed: 'Unable to export the checklist.',
+  reviewSaveFailed: 'Review changes could not be saved. Retry your edit before exporting.',
 };
 const pl: Record<keyof typeof en, string> = {
   language: 'Język', import: 'Wczytaj STL', objects: 'Obiekty', objectList: 'Obiekty modelu',
@@ -84,6 +88,10 @@ const pl: Record<keyof typeof en, string> = {
   unselected: 'Niezaznaczone', selectionLegend: 'Zaznaczone', colorLegend: 'Kolory widoku',
   withinTolerance: 'W marginesie dopasowania', withinToleranceCount: 'W marginesie: {count}',
   fitMargin: 'Margines dopasowania: {value} mm', fitMarginTip: 'Turkusowe obszary mieszczą się w marginesie i są liczone osobno od intersekcji.',
+  directConnections: 'Bezpośrednie powiązania', runCheckHint: 'Uruchom Sprawdź intersekcje, aby zobaczyć wyniki.',
+  reviewScope: 'Przegląd intersekcji', reviewComplete: 'Wszystkie części sprawdzone', partsRemaining: 'Pozostało do sprawdzenia: {count}',
+  exportPdf: 'Eksportuj PDF', exportingPdf: 'Przygotowywanie PDF…', exportFailed: 'Nie można wyeksportować checklisty.',
+  reviewSaveFailed: 'Nie zapisano zmian przeglądu. Ponów edycję przed eksportem.',
 };
 export type Language = 'en' | 'pl';
 export type TextKey = keyof typeof en;
@@ -100,6 +108,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export const useI18n = () => useContext(Context);
 
 const serverErrors = [
+  ['Wczytaj model przed eksportem checklisty.', 'Import a model before exporting the checklist.'],
+  ['Model zmieniony. Ponów eksport checklisty.', 'The model changed. Export the checklist again.'],
+  ['Nie zapisano zmian przeglądu. Ponów edycję przed eksportem.', 'Review changes could not be saved. Retry your edit before exporting.'],
   ['Sesja wygasła. Odśwież stronę i wczytaj pliki ponownie.', 'Session expired. Refresh the page and import your files again.'],
   ['Poczekaj na zakończenie bieżącej operacji.', 'Wait for the current operation to finish.'],
   ['Prototyp obsługuje do 100 części w sesji.', 'A session supports up to 100 objects.'],

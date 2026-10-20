@@ -19,7 +19,7 @@ test('Checks collapse by category and object; checklist is a separate tab', asyn
   await expect(page.locator('#checks-panel .review-row')).toHaveCount(0);
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(2);
   const category = page.getByRole('button', { name: 'Intersections', exact: true });
-  await expect(category).toContainText('1 pair');
+  await expect(category).toContainText('1');
   await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .result-pair')).toHaveCount(1);
   await page.getByRole('button', { name: 'Inspect pair: B.stl / C.stl', exact: true }).click();
@@ -27,7 +27,7 @@ test('Checks collapse by category and object; checklist is a separate tab', asyn
   const before = await page.locator('canvas').screenshot();
   await category.click();
   await expect(category).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.locator('#intersection-groups')).toBeHidden();
+  await expect(page.locator('#intersections-groups')).toBeHidden();
   await expect(page.getByLabel('Show intersections', { exact: true })).toBeChecked();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
   expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);
@@ -70,4 +70,23 @@ test('The same selection blue is used for ordinary, multiple and inspected objec
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
   await expect(b.locator('.part-swatch')).toHaveCSS('background-color', blue);
   await expect(page.locator('.selection-color-legend')).toHaveText('Not selectedSelected');
+});
+
+test('Uncertain pairs are exposed separately and each result has one inspection action', async ({ page }, testInfo) => {
+  const { stlBox } = await import('./fixtures');
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
+  const broken = stlBox('open.stl', 0);
+  broken.buffer = Buffer.from(broken.buffer.toString().replace(/facet normal[^]*?endfacet\n/, ''));
+  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0), broken]);
+  await expect(page.locator('.object-row')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Needs review', exact: true })).toBeVisible();
+  await expect(page.locator('.category-intersections')).toContainText('No intersections found');
+  await page.getByRole('button', { name: 'Intersections of A.stl', exact: true }).click();
+  await expect(page.locator('.category-uncertain .pair-actions button')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Inspect pair: A.stl / open.stl', exact: true }).click();
+  await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
+  await expect(page.locator('.review-row input:checked')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('uncertain-results.png') });
 });

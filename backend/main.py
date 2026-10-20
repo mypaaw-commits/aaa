@@ -14,8 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
+from backend.reports import checklist_pdf
 
-app = FastAPI(title='ModelCheck 3D', version='0.17.0')
+app = FastAPI(title='ModelCheck 3D', version='0.18.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -30,6 +31,13 @@ class AnalysisRequest(BaseModel):
 class TaskReview(BaseModel):
     done: bool = Field(strict=True)
     note: str = Field(default='', max_length=5000)
+    model_config = ConfigDict(extra='forbid')
+
+
+class ReportRequest(BaseModel):
+    language: Literal['en', 'pl'] = 'en'
+    part_ids: list[str] = Field(default_factory=list, max_length=100)
+    utc_offset_minutes: int = Field(default=0, ge=-840, le=840)
     model_config = ConfigDict(extra='forbid')
 
 
@@ -239,6 +247,21 @@ def intersection(sid: str, rid: str):
     if row is None or row['_mesh'] is None:
         raise HTTPException(404, 'Brak geometrii intersekcji.')
     return Response(row['_mesh'].export(file_type='stl'), media_type='application/octet-stream')
+
+
+@app.post('/api/sessions/{sid}/report')
+def export_report(sid: str, request: ReportRequest):
+    with lock:
+        session = session_for(sid); idle(session)
+        if not session['parts']:
+            raise HTTPException(400, 'Wczytaj model przed eksportem checklisty.')
+        ids = request.part_ids or list(session['parts'])
+        if len(ids) != len(session['parts']) or set(ids) != set(session['parts']):
+            raise HTTPException(409, 'Model zmieniony. Ponów eksport checklisty.')
+        parts = [session['parts'][pid]['meta'].copy() for pid in ids]
+        tasks = {task['part_id']: task.copy() for task in session['tasks'].values()}
+    data, filename = checklist_pdf(parts, tasks, request.language, request.utc_offset_minutes, app.version, FIT_TOLERANCE)
+    return Response(data, media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="{filename}"', 'Cache-Control': 'no-store'})
 
 
 # A built frontend is served locally by the same process. Vite proxies /api in development.

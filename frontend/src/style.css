@@ -213,3 +213,46 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .selection-color-legend > span { display: inline-flex; align-items: center; gap: 6px; color: #d6e0e7; }
 .pair-symbol.withinTolerance, .pair-files .pair-status.withinTolerance, .review-status.withinTolerance { color: #197f70; }
 .fit-margin { display: inline-block; margin-top: 7px; font-size: 10px; color: #52776f; }
+
+/* Results: one inspection action, separate findings and a dedicated review footer. */
+.result-tabs { display: grid; grid-template-columns: 1fr .8fr 1.35fr; padding: 0 8px; gap: 0; }
+.result-tabs [role=tab] { padding: 14px 5px 12px; }
+.result-section-heading { padding: 15px 16px 11px; }
+.result-section-heading h2 { color: #344b5a; font-size: 12px; }
+.checks-scroll { flex: 1; min-height: 0; overflow: auto; }
+.checks-pairs-section { display: block; flex: none; min-height: auto; }
+.check-section-toggle { min-height: 54px; padding: 15px 14px; background: #fafbfc; }
+.check-section-toggle strong { font-size: 12px; }
+.category-uncertain .check-section-toggle { color: #927035; }
+.category-fits .check-section-toggle { color: #267f70; }
+.category-fits { border-top: 6px solid #f4f6f8; }
+.intersection-results-scroll { flex: none; overflow: visible; }
+.connection-group-toggle { padding: 12px 14px; min-height: 48px; gap: 9px; }
+.connection-group-toggle strong { font-weight: 500; }
+.connection-group.expanded > .connection-group-toggle { background: #f0f5f8; }
+.connection-children { margin: 0 10px 10px 20px; border-left-color: #dce5eb; }
+.connection-children .result-pair { padding: 10px 4px 10px 10px; gap: 8px; }
+.result-pair:last-child { border-bottom: 0; }
+.pair-files { line-height: 1.45; }
+.pair-files .pair-status { margin-top: 4px; font-size: 11px; }
+.pair-symbol { align-self: flex-start; padding-top: 6px; }
+.inspect-button { min-height: 31px; padding: 6px 8px; border-radius: 4px; font-size: 11px; }
+.results-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 26px; text-align: center; color: #7d909e; }
+.results-empty strong { font-size: 13px; font-weight: 500; color: #415c6b; }
+.results-empty p { font-size: 12px; line-height: 1.6; }
+.part-checklist .result-section-heading { padding-bottom: 12px; }
+.review-item { border-bottom: 1px solid #edf0f3; }
+.review-row { padding: 14px 15px; border: 0; }
+.review-object strong { font-size: 13px; }
+.review-status { margin-top: 4px; }
+.review-row.reviewed { background: #f5f8fa; }
+.review-row.reviewed .review-object strong { color: #56707c; }
+.notes-editor { max-height: none; margin: 0 12px 12px 35px; padding: 9px; border: 1px solid #d9e3e9; border-radius: 5px; overflow: visible; background: #f7fafb; }
+.notes-editor label { font-size: 11px; color: #607783; display: block; margin-bottom: 6px; }
+.notes-editor textarea { min-height: 82px; max-height: 220px; font-size: 12px; }
+.checklist-footer { flex-shrink: 0; padding: 13px 14px; border-top: 1px solid #dce5eb; background: #f7f9fb; }
+.completion-state { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; font-size: 12px; color: #738591; }
+.completion-state.complete { color: #28766c; }
+.export-pdf { width: 100%; background: #397d87; border-color: #397d87; color: #fff; }
+.export-pdf:hover:not(:disabled) { color: #fff; background: #326f78; border-color: #326f78; }
+.part-review-scroll { flex: 1; }

@@ -26,6 +26,7 @@ export default function App() {
   const [activePair, setActivePair] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [loaded, setLoaded] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState<{ key: TextKey; values?: Values } | null>(null);
@@ -42,7 +43,8 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const reviewQueue = useRef<Promise<void>>(Promise.resolve());
-  const busy = loading || job?.state === 'running';
+  const reviewSaveFailed = useRef(false);
+  const busy = loading || exporting || job?.state === 'running';
   const intersectionsReady = tasks.length > 0 && tasks.every(task => !task.stale);
 
   useEffect(() => {
@@ -132,10 +134,6 @@ export default function App() {
     setParts(previous => previous.map(part => relation.part_ids.includes(part.id) ? { ...part, visible: true } : part));
     if (isolated && !relation.part_ids.every(id => isolated.includes(id))) setIsolated(null);
   }
-  function focusPair(relation: Relation) {
-    choosePair(relation);
-    requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
-  }
   function isolatePair(relation: Relation) {
     choosePair(relation); setIsolated(relation.part_ids);
     requestAnimationFrame(() => viewer.current?.fit(relation.part_ids));
@@ -181,13 +179,37 @@ export default function App() {
     reviewQueue.current = reviewQueue.current.then(async () => {
       try {
         await api(`/sessions/${session}/tasks/${task.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done, note }) });
+        reviewSaveFailed.current = false;
       } catch (err) {
+        reviewSaveFailed.current = true;
         setError((err as Error).message);
-      const current = await api<AnalysisResult>(`/sessions/${session}/analysis`).catch(() => null);
+        const current = await api<AnalysisResult>(`/sessions/${session}/analysis`).catch(() => null);
         if (current) setTasks(current.tasks);
       }
     });
     return reviewQueue.current;
+  }
+  async function exportChecklist() {
+    if (busy || !session || !parts.length) return;
+    setExporting(true); setError('');
+    try {
+      await reviewQueue.current;
+      if (reviewSaveFailed.current) throw new Error(t('reviewSaveFailed'));
+      const response = await fetch(`/api/sessions/${session}/report`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language, part_ids: parts.map(part => part.id), utc_offset_minutes: -new Date().getTimezoneOffset() }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(typeof body?.detail === 'string' ? body.detail : t('exportFailed'));
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url; link.download = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'modelcheck-checklist.pdf';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { setError((err as Error).message); }
+    finally { setExporting(false); }
   }
   const duplicateName = (part: Part) => parts.filter(other => other.name === part.name).length > 1 ? ` · ${parts.indexOf(part) + 1}` : '';
   const fitSelected = () => { if (selected.length) { setIsolated(selected); setParts(previous => previous.map(part => selected.includes(part.id) ? { ...part, visible: true } : part)); requestAnimationFrame(() => viewer.current?.fit(selected)); } };
@@ -211,7 +233,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.17</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.18</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
@@ -264,7 +286,7 @@ export default function App() {
           </div>
         </div>
       </section>
-      <ResultsPanel parts={parts} relations={relations} tasks={tasks} busy={!!busy} tab={panelTab} onTab={setPanelTab} inspected={activePair} onChoose={choosePair} onFrame={focusPair} onIsolate={isolatePair} onInspect={focusIntersection} onReview={(task, done, note) => void reviewTask(task, done, note)} name={part => part.name + duplicateName(part)} />
+      <ResultsPanel parts={parts} relations={relations} tasks={tasks} busy={!!busy} tab={panelTab} onTab={setPanelTab} inspected={activePair} onChoose={choosePair} onIsolate={isolatePair} onInspect={focusIntersection} exporting={exporting} onExport={exportChecklist} onReview={(task, done, note) => void reviewTask(task, done, note)} name={part => part.name + duplicateName(part)} />
     </main>
     <footer className="statusbar"><span role="status">{busy ? t('processing') : notice ? t(notice.key, notice.values) : t('ready')}</span><span>{t('modelSummary', { parts: parts.length, pairs: connectedCount })}</span><span className="session-note">{t('sessionOnly')}</span></footer>
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onDelete={() => void removePart(objectMenu.id)} />}
