@@ -40,6 +40,8 @@ const en = {
   objectConnections: 'Connections of {name}', projection: 'Projection', orthographic: 'Orthographic',
   objectIntersections: 'Intersections of {name}', pairCount: '{count} pairs', pairCountOne: '1 pair',
   unselected: 'Not selected', selectionLegend: 'Selected', colorLegend: 'View colors',
+  withinTolerance: 'Within tolerance', withinToleranceCount: '{count} within tolerance',
+  fitMargin: 'Fit margin: {value} mm', fitMarginTip: 'Teal regions are within the fit margin and are counted separately from intersections.',
 };
 const pl: Record<keyof typeof en, string> = {
   language: 'Język', import: 'Wczytaj STL', objects: 'Obiekty', objectList: 'Obiekty modelu',
@@ -80,6 +82,8 @@ const pl: Record<keyof typeof en, string> = {
   objectConnections: 'Powiązania obiektu {name}', projection: 'Projekcja', orthographic: 'Ortograficzna',
   objectIntersections: 'Intersekcje obiektu {name}', pairCount: 'Pary: {count}', pairCountOne: 'Pary: 1',
   unselected: 'Niezaznaczone', selectionLegend: 'Zaznaczone', colorLegend: 'Kolory widoku',
+  withinTolerance: 'W marginesie dopasowania', withinToleranceCount: 'W marginesie: {count}',
+  fitMargin: 'Margines dopasowania: {value} mm', fitMarginTip: 'Turkusowe obszary mieszczą się w marginesie i są liczone osobno od intersekcji.',
 };
 export type Language = 'en' | 'pl';
 export type TextKey = keyof typeof en;

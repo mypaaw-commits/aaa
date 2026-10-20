@@ -176,3 +176,27 @@ def test_partial_contact_does_not_hide_intersection_elsewhere():
     assert row['kind'] == 'INTERSECTION'
     assert row['volume'] == pytest.approx(2)
     assert all(task['result'] == 'INTERSECTION' and not task['done'] for task in result['tasks'])
+
+
+def test_boolean_fit_is_separate_from_intersections_and_remains_manually_reviewed():
+    from pathlib import Path
+    sid = session()
+    fixture = Path(__file__).resolve().parents[2] / 'frontend/tests/fixtures'
+    files = [('files', (f'{name}.stl', (fixture / f'{name}.stl').read_bytes())) for name in ['socket', 'key']]
+    assert client.post(f'/api/sessions/{sid}/parts', files=files).status_code == 200
+    information = analyze(sid)
+    assert information['relations'][0]['kind'] == 'WITHIN_TOLERANCE'
+    assert information['tasks'] == []
+    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    assert result['job']['fit_tolerance'] == .001
+    row = result['relations'][0]
+    assert row['fit_tolerance'] == .001
+    assert all(task['result'] == 'WITHIN_TOLERANCE' and task['fit_pairs'] == 1 and task['intersections'] == 0 and not task['done'] for task in result['tasks'])
+    data = client.get(f"/api/sessions/{sid}/relations/{row['id']}/intersection")
+    assert data.status_code == 200
+    assert trimesh.load(io.BytesIO(data.content), file_type='stl').area > 0
+    task = result['tasks'][0]
+    assert client.patch(f"/api/sessions/{sid}/tasks/{task['id']}", json={'done': True, 'note': 'Fit reviewed'}).status_code == 200
+    repeated = analyze(sid, {'check': 'INTERSECTIONS'})
+    assert next(t for t in repeated['tasks'] if t['id'] == task['id'])['done'] is True
+    assert sum(t['done'] for t in repeated['tasks']) == 1

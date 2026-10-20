@@ -13,9 +13,9 @@ from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
-from backend.geometry import prepare, analyze_pair, CONNECTION_EPS
+from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 
-app = FastAPI(title='ModelCheck 3D', version='0.16.0')
+app = FastAPI(title='ModelCheck 3D', version='0.17.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -61,7 +61,7 @@ def add_part(session, mesh, name, size):
 
 @app.get('/api/health')
 def health():
-    return {'status': 'ok', 'version': app.version, 'units': 'mm', 'connection_epsilon': CONNECTION_EPS}
+    return {'status': 'ok', 'version': app.version, 'units': 'mm', 'connection_epsilon': CONNECTION_EPS, 'fit_tolerance': FIT_TOLERANCE}
 
 
 @app.post('/api/sessions')
@@ -69,7 +69,7 @@ def create_session():
     sid = uuid4().hex
     with lock:
         sessions[sid] = {'parts': {}, 'relations': {}, 'tasks': {}, 'busy': False, 'job': None}
-    return {'id': sid}
+    return {'id': sid, 'fit_tolerance': FIT_TOLERANCE}
 
 
 @app.delete('/api/sessions/{sid}')
@@ -178,14 +178,15 @@ def run_analysis(session, ids, job):
                 intersections = sum(row['kind'] == 'INTERSECTION' for row in related)
                 coincident = sum(row['coincident'] for row in related)
                 uncertain = sum(row['kind'] == 'UNCERTAIN' for row in related)
+                fits = sum(row['kind'] == 'WITHIN_TOLERANCE' for row in related)
                 tid = f'INTERSECTIONS:{pid}'
                 previous = session['tasks'].get(tid, {})
                 tasks[tid] = {'id': tid, 'part_id': pid, 'check': 'INTERSECTIONS',
                               'done': previous.get('done', False) if not previous.get('stale') else False,
                               'note': previous.get('note', ''), 'stale': False,
-                              'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'CLEAR',
+                              'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'WITHIN_TOLERANCE' if fits else 'CLEAR',
                               'intersections': intersections, 'uncertain_pairs': uncertain,
-                              'coincident_pairs': coincident}
+                              'coincident_pairs': coincident, 'fit_pairs': fits}
             session['tasks'].update(tasks)
         job['state'] = 'done'
     except Exception:
@@ -204,7 +205,7 @@ def start_analysis(sid: str, request: AnalysisRequest):
             raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
         job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
-               'seconds': 0, '_start': time.monotonic(), 'error': None}
+               'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': FIT_TOLERANCE}
         session['job'] = job
         executor.submit(run_analysis, session, ids, job)
         return {key: val for key, val in job.items() if not key.startswith('_')}

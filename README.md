@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.16
+# ModelCheck 3D — prototype 0.17
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.16**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.17**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -43,7 +43,8 @@ Colors have one meaning throughout the workspace:
 | --- | --- |
 | Matte gray | An unselected object |
 | Muted blue | A selected object, from the list, viewport or a pair action |
-| Red | The computed intersection region |
+| Red | An intersection exceeding the fit margin |
+| Teal | Computed overlap verified within the 0.001 mm fit margin |
 | Purple | Full volume coincidence, in result labels and the analysis overlay |
 
 Selection never changes to a second color for a pair or a coincident object. The viewport legend and object swatches use the same palette. Marking an object reviewed leaves its result color unchanged. Object activation and the tutorial overlay have been removed.
@@ -52,30 +53,34 @@ Selection never changes to a second color for a pair or a coincident object. The
 
 ## Connections and intersections
 
-**Find connections** computes informational links between directly connected parts. Connections lists every imported object as a collapsed group, including objects with no links. Expand an object to see only the parts linked to it; opening another group closes the previous one. Expanding or closing a group leaves the 3D selection unchanged. Connected, Intersection, Needs review and Coincident have different icons and visible labels. Click a linked part to select and highlight both objects without moving the camera. The magnifier button selects and frames it. **Isolate**, with a separate box icon, selects, isolates and frames the pair. Objects in the chosen pair are made visible; other objects remain visible until isolation is requested.
+**Find connections** computes informational links between directly connected parts. Connections lists every imported object as a collapsed group, including objects with no links. Expand an object to see only the parts linked to it; opening another group closes the previous one. Expanding or closing a group leaves the 3D selection unchanged. Connected, Within tolerance, Intersection, Needs review and Coincident have different icons and visible labels. Click a linked part to select and highlight both objects without moving the camera. The magnifier button selects and frames it. **Isolate**, with a separate box icon, selects, isolates and frames the pair. Objects in the chosen pair are made visible; other objects remain visible until isolation is requested.
 
 ![Selected pair with matching object colors and separate connection actions](docs/selected-pair.png)
 
 **Check intersections** creates a review task for every imported object and opens the Checks tab. Results and reviews now have separate tabs:
 
-- **Checks → Intersections:** a collapsible check category containing expandable objects. Expand an object to see the parts it intersects; only one object group is open at a time. The category total counts each pair once. Inspect isolates and frames a pair, highlights both objects in blue, and enables its red or purple analysis overlay. Expanding/collapsing a group does not select anything or complete a task.
-- **Part checklist, its own tab:** one compact row per imported object, with its result, manual review checkbox and optional notes. Results can be Clear, an intersection count, Needs review, or Out of date. Clear results are never checked automatically.
+- **Checks → Intersections:** a collapsible check category containing expandable objects. Expand an object to see the parts it intersects; only one object group is open at a time. The category total counts each pair once, including separately labelled Within tolerance results. Inspect isolates and frames a pair, highlights both objects in blue, and enables its red, teal or purple analysis overlay. Expanding/collapsing a group does not select anything or complete a task.
+- **Part checklist, its own tab:** one compact row per imported object, with its result, manual review checkbox and optional notes. Results can be Clear, Within tolerance, an intersection count, Needs review, or Out of date. Clear results are never checked automatically.
 
 **Coincident** identifies two valid solids that occupy the same volume. It is shown in purple in the pair list, part results and intersection overlay. Bounds only identify candidates: both Boolean differences must be empty. Different triangulations of the same solid are accepted; close copies, containment and matching bounds alone are insufficient. This remains an intersection requiring manual review.
 
 ![Coincident solids shown in purple](docs/coincident.png)
 
-
 ![Grouped informational connections](docs/connections-grouped.png)
 
-White contact-area overlays and their switch have been removed. Finding connections updates the results list without changing the 3D view. Red regions remain available only after explicitly checking intersections and enabling their overlay.
+**Fit margin: 0.001 mm.** Boolean subtraction can leave tiny overlapping fragments after STL float32 export. These are classified separately as **Within tolerance**, shown in teal when the intersection overlay is enabled, and counted separately from red intersections in both the summary and part checklist. The raw volume and overlap geometry are retained. A fit still requires manual review.
+
+Acceptance checks the entire computed overlap against the surface bands of **both** valid solids using eroded Manifold3D cores. Small volume alone is insufficient: deep thin intrusions, containment and full coincidence keep their intersection classification. A cheap volume/area test rejects obvious candidates but never accepts a fit. The erosion uses an inscribed geodesic sphere, so the check is conservative near the threshold and may retain an intersection there. Numerical failures remain Needs review. The eroded cores are cached per part; the first analysis of a large mesh may take longer. Source positions and geometry remain unchanged.
+
+![Boolean sphere/socket fragments within tolerance, shown in teal](docs/fitted-tolerance.png)
+
+White contact-area overlays and their switch remain removed. Finding connections updates the results list without changing the 3D view. Red and teal regions appear only after explicitly checking intersections and enabling their overlay. Exact zero-volume contact stays an informational connection; the tolerance does not propose links across gaps.
 
 **Transparency** above the 3D view independently toggles object opacity. It works before analysis and remains separate from the intersection overlay; running a check does not turn transparency on.
 
 The Checks and Part checklist tabs each use the full height of the results panel. The checklist currently contains intersection reviews; other check types will be added later. Notes open only when requested using the speech-bubble icon.
 
 ![Part checklist in a separate tab](docs/part-checklist.png)
-
 
 ![Inspect a single intersecting pair](docs/intersection-closeup.png)
 
@@ -133,7 +138,7 @@ Ordinary selection and clicking a pair name do not move the camera. Pair framing
 - FCL checks surfaces; Manifold3D / Mesh64 computes intersection volumes. Bounding boxes are used only to reject distant pairs.
 - Partial overlap, complete containment and disconnected intersection regions are supported. Invalid/open meshes, inconsistent calculations and borderline volumes are marked uncertain.
 - Internal connection epsilon: **0.00001 mm**. This is a numerical tolerance, not a manufacturing tolerance. Point and edge contact count as informational connections.
-- Tiny computed intersections, at or below max(10⁻¹² mm³, 10⁻¹⁰ of the smaller part's volume), are uncertain. Automatic repair and reliable detection of all self-intersections are outside this prototype.
+- Tiny computed intersections, at or below max(10⁻¹² mm³, 10⁻¹⁰ of the smaller part's volume), are uncertain unless the fit margin has been verified independently. Automatic repair and reliable detection of all self-intersections are outside this prototype.
 - Import limit: **100 MiB per STL**, up to **100 objects** per session. Real-world 100 MB model performance has not yet been measured. Working memory and GPU requirements exceed file sizes.
 - Geometry operations run in the background. There is no cancellation for a single long Boolean operation yet.
 - **No project saving yet.** Refreshing starts a new session; restarting the server removes session data. Browser language preference is separate and persists locally. Session cleanup on tab closure is best effort.
@@ -159,4 +164,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

@@ -17,6 +17,7 @@ type Imported = { parts: Omit<Part, 'visible'>[]; errors: { name: string; messag
 export default function App() {
   const { t, language, setLanguage } = useI18n();
   const [session, setSession] = useState('');
+  const [fitTolerance, setFitTolerance] = useState<number | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [relations, setRelations] = useState<Relation[]>([]);
   const [tasks, setTasks] = useState<CheckTask[]>([]);
@@ -45,7 +46,7 @@ export default function App() {
   const intersectionsReady = tasks.length > 0 && tasks.every(task => !task.stale);
 
   useEffect(() => {
-    api<{ id: string }>('/sessions', { method: 'POST' }).then(result => setSession(result.id)).catch(err => setError(err.message));
+    api<{ id: string; fit_tolerance: number }>('/sessions', { method: 'POST' }).then(result => { setSession(result.id); setFitTolerance(result.fit_tolerance); }).catch(err => setError(err.message));
   }, []);
   useEffect(() => {
     if (!session) return;
@@ -198,8 +199,9 @@ export default function App() {
   }
   const listedParts = parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase()));
   const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
-  const connectedCount = relations.filter(row => row.kind === 'CONNECTED' || row.kind === 'INTERSECTION').length;
-  const visibleIntersections = relations.filter(row => row.kind === 'INTERSECTION' && row.part_ids.every(id => parts.some(part => part.id === id && part.visible && (!isolated || isolated.includes(id)))));
+  const fitCount = relations.filter(row => row.kind === 'WITHIN_TOLERANCE').length;
+  const connectedCount = relations.filter(row => ['CONNECTED', 'INTERSECTION', 'WITHIN_TOLERANCE'].includes(row.kind)).length;
+  const visibleIntersections = relations.filter(row => ['INTERSECTION', 'WITHIN_TOLERANCE'].includes(row.kind) && row.part_ids.every(id => parts.some(part => part.id === id && part.visible && (!isolated || isolated.includes(id)))));
 
 
   return <div className="app"
@@ -209,7 +211,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.16</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.17</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
@@ -241,8 +243,9 @@ export default function App() {
           </div>
           <div className="analysis-result">
             <label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label>
-            <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? job.check === 'INTERSECTIONS' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : t('connectionsFound') : ''}</span>
+            <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? job.check === 'INTERSECTIONS' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : t('connectionsFound') : ''}{job?.state === 'done' && job.check === 'INTERSECTIONS' && fitCount > 0 && ` · ${t('withinToleranceCount', { count: fitCount })}`}</span>
           </div>
+          {fitTolerance !== null && <span className="fit-margin" title={t('fitMarginTip')}>{t('fitMargin', { value: fitTolerance.toLocaleString(language, { maximumFractionDigits: 6 }) })}</span>}
           {job?.state === 'running' && <progress aria-label={t('analysisProgress')} max={job.total} value={job.completed} />}
         </section>
         <div className="viewport">
@@ -257,7 +260,7 @@ export default function App() {
           <div className="viewport-legend" aria-label={t('colorLegend')}>
             {parts.length > 0 && <div className="selection-color-legend"><span><i style={{ background: partColors.idle }} />{t('unselected')}</span><span><i style={{ background: partColors.selected }} />{t('selectionLegend')}</span></div>}
 
-            {intersections && intersectionsReady && <div className="view-legend">{visibleIntersections.some(row => !row.coincident) && <span><i style={{ background: partColors.intersection }} />{t('intersectionLegend')}</span>}{visibleIntersections.some(row => row.coincident) && <span><i style={{ background: partColors.coincident }} />{t('coincident')}</span>}</div>}
+            {intersections && intersectionsReady && <div className="view-legend">{visibleIntersections.some(row => row.kind === 'WITHIN_TOLERANCE') && <span className="fit-legend"><i style={{ background: partColors.fit }} />{t('withinTolerance')}</span>}{visibleIntersections.some(row => row.kind === 'INTERSECTION' && !row.coincident) && <span><i style={{ background: partColors.intersection }} />{t('intersectionLegend')}</span>}{visibleIntersections.some(row => row.coincident) && <span><i style={{ background: partColors.coincident }} />{t('coincident')}</span>}</div>}
           </div>
         </div>
       </section>

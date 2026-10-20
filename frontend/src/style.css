@@ -211,3 +211,5 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .part-checklist { border-top: 0; margin-top: 0; }
 .viewport-legend .selection-color-legend { display: flex; gap: 16px; font-size: 11px; }
 .selection-color-legend > span { display: inline-flex; align-items: center; gap: 6px; color: #d6e0e7; }
+.pair-symbol.withinTolerance, .pair-files .pair-status.withinTolerance, .review-status.withinTolerance { color: #197f70; }
+.fit-margin { display: inline-block; margin-top: 7px; font-size: 10px; color: #52776f; }

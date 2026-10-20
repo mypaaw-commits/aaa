@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, BoxSelect, ChevronDown, ChevronRight, ClipboardCheck, Copy, Link2, ScanLine, TriangleAlert, ZoomIn } from 'lucide-react';
+import { Box, BoxSelect, ChevronDown, ChevronRight, ClipboardCheck, Copy, Link2, Ruler, ScanLine, TriangleAlert, ZoomIn } from 'lucide-react';
 import type { CheckTask, Part, Relation } from './types';
 import { partColors } from './types';
 import { useI18n } from './i18n';
@@ -24,17 +24,17 @@ export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspec
     const pair = relation.part_ids.map(id => parts.find(part => part.id === id)).filter((part): part is Part => !!part).sort((a, b) => name(a).localeCompare(name(b), language, { numeric: true }));
     return pair.length === 2 ? [{ relation, pair }] : [];
   }).sort((a, b) => a.pair.map(name).join(' / ').localeCompare(b.pair.map(name).join(' / '), language, { numeric: true }));
-  const intersections = fresh ? pairs.filter(row => row.relation.kind === 'INTERSECTION') : [];
+  const intersections = fresh ? pairs.filter(row => row.relation.kind === 'INTERSECTION' || row.relation.kind === 'WITHIN_TOLERANCE') : [];
   function pairRow({ relation, pair }: typeof pairs[number], inspect: boolean, owner: string) {
-    const kind = relation.coincident ? 'coincident' : relation.kind === 'UNCERTAIN' ? 'uncertain' : relation.kind === 'INTERSECTION' ? 'intersection' : 'connection';
-    const Symbol = relation.coincident ? Copy : relation.kind === 'UNCERTAIN' ? TriangleAlert : relation.kind === 'INTERSECTION' ? ScanLine : Link2;
+    const kind = relation.coincident ? 'coincident' : relation.kind === 'UNCERTAIN' ? 'uncertain' : relation.kind === 'WITHIN_TOLERANCE' ? 'withinTolerance' : relation.kind === 'INTERSECTION' ? 'intersection' : 'connection';
+    const Symbol = relation.coincident ? Copy : relation.kind === 'UNCERTAIN' ? TriangleAlert : relation.kind === 'WITHIN_TOLERANCE' ? Ruler : relation.kind === 'INTERSECTION' ? ScanLine : Link2;
     const values = { a: name(pair[0]), b: name(pair[1]) };
     const other = pair.find(part => part.id !== owner)!;
     return <div className={`result-pair ${inspected === relation.id ? 'inspected' : ''}`} key={relation.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) onChoose(relation); }}>
       <span className={`pair-symbol ${kind}`} title={t(kind)}><Symbol size={16} /></span>
       <button className="pair-files pair-select" aria-label={t('selectPair', values)} aria-pressed={inspected === relation.id} onClick={() => onChoose(relation)}>
         <span title={name(other)}>{inspected === relation.id && <i aria-hidden="true" style={{ background: partColors.selected }} />}{name(other)}</span>
-        <span className={`pair-status ${kind} ${relation.coincident ? 'coincident-label' : ''}`} title={relation.coincident ? t('coincidentTip') : undefined}>{t(kind)}</span>
+        <span className={`pair-status ${kind} ${relation.coincident ? 'coincident-label' : ''}`} title={relation.coincident ? t('coincidentTip') : relation.kind === 'WITHIN_TOLERANCE' ? t('fitMargin', { value: relation.fit_tolerance.toLocaleString(language, { maximumFractionDigits: 6 }) }) : undefined}>{t(kind)}</span>
       </button>
       <div className="pair-actions">
         {!inspect && <button className="icon-button pair-zoom" title={t('zoomPair', values)} onClick={() => onFrame(relation)}><ZoomIn size={16} /></button>}

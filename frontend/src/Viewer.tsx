@@ -224,19 +224,19 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const visible = new Set(props.parts.filter(part => part.visible && (!props.isolated || props.isolated.includes(part.id))).map(part => part.id));
     const load = async () => {
       for (const relation of props.relations) {
-        if (!props.intersections || relation.kind !== 'INTERSECTION' || !relation.part_ids.every(id => visible.has(id))) continue;
+        if (!props.intersections || !['INTERSECTION', 'WITHIN_TOLERANCE'].includes(relation.kind) || !relation.part_ids.every(id => visible.has(id))) continue;
         try {
           const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/intersection`, { signal: abort.signal });
           if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
           const geometry = loader.parse(await response.arrayBuffer());
           if (cancelled) { geometry.dispose(); return; }
-          const material = new THREE.MeshBasicMaterial({ color: relation.coincident ? partColors.coincident : partColors.intersection, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true });
+          const material = new THREE.MeshBasicMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? partColors.fit : relation.coincident ? partColors.coincident : partColors.intersection, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true });
           const mesh = new THREE.Mesh(geometry, material);
           mesh.renderOrder = 10; e.overlays.add(mesh);
           const edges = new THREE.EdgesGeometry(geometry, 25);
           const lineGeometry = new LineSegmentsGeometry().setPositions(edges.getAttribute('position').array as Float32Array);
           edges.dispose();
-          const lineMaterial = new LineMaterial({ color: relation.coincident ? '#d5b4ee' : '#ff9696', linewidth: 1.5, depthTest: false, depthWrite: false, transparent: true, opacity: 1, toneMapped: false });
+          const lineMaterial = new LineMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? '#a3f4df' : relation.coincident ? '#d5b4ee' : '#ff9696', linewidth: 1.5, depthTest: false, depthWrite: false, transparent: true, opacity: 1, toneMapped: false });
           const lines = new LineSegments2(lineGeometry, lineMaterial);
           lines.renderOrder = 11; e.overlays.add(lines);
           e.invalidate();
