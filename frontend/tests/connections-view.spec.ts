@@ -7,9 +7,10 @@ test('Connections expand per object, keep selection, and distinguish review icon
   await page.locator('input[type=file]').setInputFiles([stlBox('D.stl', 30)]);
   await expect(page.locator('.object-row')).toHaveCount(4);
   await page.locator('.object-select').first().click();
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
-  await expect(page.locator('.connection-group-toggle')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
+  await expect(page.locator('#relations-panel .connection-group-toggle')).toHaveCount(4);
   const a = page.getByRole('button', { name: 'Connections of A.stl', exact: true });
   const b = page.getByRole('button', { name: 'Connections of B.stl', exact: true });
   await a.click();
@@ -30,8 +31,9 @@ test('Connections expand per object, keep selection, and distinguish review icon
   broken.buffer = Buffer.from(broken.buffer.toString().replace(/facet normal[^]*?endfacet\n/, ''));
   await page.locator('input[type=file]').setInputFiles([broken]);
   await expect(page.locator('.object-row')).toHaveCount(5);
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Connections of open.stl', exact: true }).click();
   await expect(page.locator('#relations-panel .pair-status.uncertain')).toContainText(['Needs review']);
   await expect(page.locator('#relations-panel .pair-symbol.uncertain svg').first()).toHaveClass(/lucide-triangle-alert/);
@@ -92,19 +94,21 @@ test('Perspective and orthographic both support framing, picking, zoom and resiz
   expect(errors).toEqual([]);
 });
 
-test('Finding connections does not change the 3D image or request contact overlays', async ({ page }) => {
+test('Browsing connections after analysis leaves the 3D image unchanged and has no contact overlays', async ({ page }) => {
   await page.goto('/');
   await loadExample(page);
   await page.getByRole('button', { name: 'Floor', exact: true }).click();
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
   await page.waitForTimeout(250);
+  const contactRequests: string[] = [];
+  page.on('request', request => { if (request.url().endsWith('/contact')) contactRequests.push(request.url()); });
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await page.waitForTimeout(250);
   const before = await page.locator('canvas').screenshot();
-  const overlayRequests: string[] = [];
-  page.on('request', request => { if (/\/(contact|intersection)$/.test(request.url())) overlayRequests.push(request.url()); });
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Show contact areas', exact: true })).toHaveCount(0);
-  expect(overlayRequests).toEqual([]);
+  expect(contactRequests).toEqual([]);
   expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);
   await page.getByRole('button', { name: 'Connections of A.stl', exact: true }).click();
   await expect(page.locator('#relations-panel .pair-status')).toHaveText('Connected');

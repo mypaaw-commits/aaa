@@ -4,27 +4,27 @@ from pathlib import Path
 from threading import RLock
 from uuid import uuid4
 from typing import Literal
-import tempfile
+import asyncio
 import time
 
 import trimesh
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 from backend.reports import checklist_pdf
+from backend.stl_stream import stl_chunks
 
-app = FastAPI(title='ModelCheck 3D', version='0.21.0')
+app = FastAPI(title='ModelCheck 3D', version='0.22.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
-LIMIT = 100 * 1024 * 1024
+LIMIT = 200 * 1024 * 1024
 
 
 class AnalysisRequest(BaseModel):
-    check: Literal['RELATIONS', 'INTERSECTIONS'] = 'RELATIONS'
+    check: Literal['ANALYSIS'] = 'ANALYSIS'
     model_config = ConfigDict(extra='forbid')
 
 
@@ -72,6 +72,24 @@ def add_part(session, mesh, name, size):
     return meta
 
 
+async def geometry_work(function):
+    # Import and analysis share one worker: reuse native allocator arenas and
+    # avoid two large geometry operations competing for RAM. Keep the upload
+    # open until its worker finishes, including when a request is cancelled.
+    future = asyncio.get_running_loop().run_in_executor(executor, function)
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        while not future.done():
+            try:
+                await asyncio.shield(future)
+            except asyncio.CancelledError:
+                continue
+            except Exception:
+                break
+        raise
+
+
 @app.get('/api/health')
 def health():
     return {'status': 'ok', 'version': app.version, 'units': 'mm', 'connection_epsilon': CONNECTION_EPS, 'fit_tolerance': FIT_TOLERANCE}
@@ -116,19 +134,18 @@ async def import_parts(sid: str, files: list[UploadFile] = File(...)):
             try:
                 if not name.lower().endswith('.stl'):
                     raise ValueError('Obsługiwane są wyłącznie pliki STL.')
-                # Spill to a temporary file instead of retaining an extra 100 MB byte string.
-                with tempfile.TemporaryFile() as source:
-                    size = 0
-                    while chunk := await upload.read(1024 * 1024):
-                        size += len(chunk)
-                        if size > LIMIT:
-                            raise ValueError('Przekroczono limit 100 MB na plik.')
-                        source.write(chunk)
+                def load_part():
+                    # UploadFile is already spooled to disk by the multipart parser.
+                    # Check the actual file length and read it directly: no second 200 MB copy.
+                    source = upload.file
+                    source.seek(0, 2)
+                    size = source.tell()
+                    if size > LIMIT:
+                        raise ValueError('Przekroczono limit 200 MB na plik.')
                     source.seek(0)
-                    def load_part():
-                        mesh = trimesh.Trimesh(**trimesh.exchange.stl.load_stl(source), process=False)
-                        return add_part(session, mesh, name, size)
-                    imported.append(await run_in_threadpool(load_part))
+                    mesh = trimesh.Trimesh(**trimesh.exchange.stl.load_stl(source), process=False)
+                    return add_part(session, mesh, name, size)
+                imported.append(await geometry_work(load_part))
             except Exception as exc:
                 message = str(exc) if isinstance(exc, ValueError) else 'Nie można odczytać siatki STL.'
                 errors.append({'name': name, 'message': message})
@@ -157,7 +174,12 @@ def part_stl(sid: str, pid: str):
     part = session_for(sid)['parts'].get(pid)
     if part is None:
         raise HTTPException(404, 'Brak części.')
-    return Response(part['shape'].mesh.export(file_type='stl'), media_type='application/octet-stream')
+    return mesh_response(part['shape'].mesh)
+
+
+def mesh_response(mesh):
+    return StreamingResponse(stl_chunks(mesh), media_type='application/octet-stream',
+                             headers={'Content-Length': str(84 + 50 * len(mesh.faces))})
 
 
 @app.delete('/api/sessions/{sid}/parts/{pid}')
@@ -205,23 +227,22 @@ def run_analysis(session, ids, job):
                 job['computed'] += 1
             job['completed'] = i + 1
         session['relations'].update(results)
-        if job['check'] == 'INTERSECTIONS':
-            tasks = {}
-            for pid in ids:
-                related = [row for row in results.values() if pid in row['part_ids']]
-                intersections = sum(row['kind'] == 'INTERSECTION' for row in related)
-                coincident = sum(row['coincident'] for row in related)
-                uncertain = sum(row['kind'] == 'UNCERTAIN' for row in related)
-                fits = sum(row['kind'] == 'WITHIN_TOLERANCE' for row in related)
-                tid = f'INTERSECTIONS:{pid}'
-                previous = session['tasks'].get(tid, {})
-                tasks[tid] = {'id': tid, 'part_id': pid, 'check': 'INTERSECTIONS',
-                              'done': previous.get('done', False) if not previous.get('stale') else False,
-                              'note': previous.get('note', ''), 'stale': False,
-                              'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'WITHIN_TOLERANCE' if fits else 'CLEAR',
-                              'intersections': intersections, 'uncertain_pairs': uncertain,
-                              'coincident_pairs': coincident, 'fit_pairs': fits}
-            session['tasks'].update(tasks)
+        tasks = {}
+        for pid in ids:
+            related = [row for row in results.values() if pid in row['part_ids']]
+            intersections = sum(row['kind'] == 'INTERSECTION' for row in related)
+            coincident = sum(row['coincident'] for row in related)
+            uncertain = sum(row['kind'] == 'UNCERTAIN' for row in related)
+            fits = sum(row['kind'] == 'WITHIN_TOLERANCE' for row in related)
+            tid = f'INTERSECTIONS:{pid}'
+            previous = session['tasks'].get(tid, {})
+            tasks[tid] = {'id': tid, 'part_id': pid, 'check': 'INTERSECTIONS',
+                          'done': previous.get('done', False) if not previous.get('stale') else False,
+                          'note': previous.get('note', ''), 'stale': False,
+                          'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'WITHIN_TOLERANCE' if fits else 'CLEAR',
+                          'intersections': intersections, 'uncertain_pairs': uncertain,
+                          'coincident_pairs': coincident, 'fit_pairs': fits}
+        session['tasks'].update(tasks)
         job['state'] = 'done'
     except Exception:
         job['state'] = 'error'; job['error'] = 'Nie udało się zakończyć analizy. Spróbuj mniejszego zestawu części.'
@@ -273,7 +294,7 @@ def intersection(sid: str, rid: str):
     row = session_for(sid)['relations'].get(rid)
     if row is None or row['_mesh'] is None:
         raise HTTPException(404, 'Brak geometrii intersekcji.')
-    return Response(row['_mesh'].export(file_type='stl'), media_type='application/octet-stream')
+    return mesh_response(row['_mesh'])
 
 
 @app.post('/api/sessions/{sid}/report')

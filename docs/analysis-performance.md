@@ -1,4 +1,4 @@
-# Intersection analysis in 0.21
+# Unified analysis and dense STL in 0.22
 
 The source geometry, result mesh and 0.001 mm fit margin are preserved. No decimation, bounding-box approximation of a positive intersection, or volume-only fit acceptance is used.
 
@@ -19,9 +19,52 @@ Both source directions must pass, as before. Containment and the existing volume
 
 Meshes are stationary; these translations exist only inside the certificate calculation. The displayed intersection is still the original Boolean intersection of the full-resolution input solids.
 
+## Dense-pair certificates in 0.22
+
+For sources with at least 50,000 triangles, an inconclusive six-direction test
+can try additional vertices of the same kernel. The same superset proof applies;
+it can certify a near-margin diagonal fit without constructing the complete erosion.
+
+A second exact certificate can prove that a genuine core overlap exists. For
+convex kernel K and e = 0.02, K + eK = (1+e)K. If a translated (1+e)K is entirely
+contained in source A, the correspondingly translated eK lies inside A's eroded
+core. A positive-volume intersection of that small witness with B therefore
+proves a core overlap. Boolean statuses must be valid and the witness volume
+must be finite and positive. Face centers supply candidate positions; samples
+never decide the result without those exact containment/intersection operations.
+
+The algorithm first tries a few witnesses, then more kernel directions, then
+the remaining candidate witnesses. If neither certificate decides the result,
+the original full erosion remains the fallback. Both source directions are
+still checked before a fit is accepted. A stable, geometry-based operand order
+avoids UUID-dependent triangulation choices in the Boolean engine.
+
+## Large-file memory and I/O
+
+The per-file limit is now **200 MiB (209,715,200 bytes)**, approximately 4.19
+million binary STL triangles. The application has one **Analyze** action that
+produces connections, intersection/fit findings and the manual checklist together.
+
+- The multipart parser already spools large uploads to disk. Import reads that
+  file directly and checks its actual length; a second file-sized copy is avoided.
+- Import preparation and analysis share one geometry worker, reusing native
+  allocator arenas and avoiding simultaneous large geometry operations. Cancelled
+  import requests wait for their worker before closing the upload stream.
+- The FCL hierarchy is built lazily only for a surface-distance query. Pairs
+  resolved by bounding boxes or a positive Boolean intersection do not build it.
+- Large validation scratch arrays are released after preparation. Small volume,
+  bounds and validity measurements are retained.
+- Fit candidate volume/area filters use the existing Boolean solid measurements
+  instead of creating full NumPy triangle arrays for the common region.
+- Source and intersection STL responses are exported in chunks of at most 8,192
+  triangles (409,600 data bytes). The response has a correct Content-Length and
+  never constructs a complete binary STL response in memory.
+- Analysis polling retries transient network resets up to three times; an HTTP
+  error is still reported rather than treated as a network reset.
+
 ## Reusing pair results
 
-Part identifiers name immutable imported shapes for the lifetime of the session. The existing relation record, including its intersection mesh, can therefore be reused for the same pair and fit margin. Both analysis commands use this result. No second geometry cache or duplicate overlay mesh is stored.
+Part identifiers name immutable imported shapes for the lifetime of the session. The existing relation record, including its intersection mesh, can therefore be reused for the same pair and fit margin. Successive analyses use this result. No second geometry cache or duplicate overlay mesh is stored.
 
 - Importing a new part introduces only new pair identifiers.
 - Deleting parts removes their relation records; surviving pairs remain valid.
@@ -29,7 +72,7 @@ Part identifiers name immutable imported shapes for the lifetime of the session.
 - A different fit margin would invalidate reuse.
 - Uncertain results are recomputed so a transient engine failure is not retained indefinitely.
 
-Explicit intersection checks still create/refresh the per-part checklist. Cached findings never mark a review complete. Model edits still invalidate prior manual reviews and preserve surviving notes.
+Analyze always creates/refreshes the per-part checklist as well as connections. Cached findings never mark a review complete. Model edits still invalidate prior manual reviews and preserve surviving notes. The obsolete split API modes are rejected; POST /analysis accepts an empty JSON object or check=ANALYSIS.
 
 ## Measurements
 
@@ -47,12 +90,49 @@ Reproduce current cold/reused measurements from the repository root without star
 ```bash
 .venv/bin/python -m backend.benchmark_analysis --subdivisions 4
 .venv/bin/python -m backend.benchmark_analysis --subdivisions 6
+.venv/bin/python -m backend.benchmark_analysis --files part-a.stl part-b.stl
 ```
 
 On Windows, use `.venv\Scripts\python.exe` instead. The script prints JSON with triangle counts, construction/import time, analysis time, computed/reused pair counts and classification. The historical baseline used `backend/geometry.py` from commit `0b7ae7f` on the same generated STL input.
 
-The full erosion remains necessary for some orientations and overlaps near the threshold, so those cases can still be slow. Reuse helps subsequent checks, while the certificate targets the first analysis of ordinary shallow fit artifacts.
+The full erosion remains necessary for some orientations and overlaps near the threshold, so those cases can still be slow. Reuse helps subsequent checks, while the certificates target the first analysis. Timing of large files is recorded separately below; the small historical example is not a promise of sub-second analysis for a 200 MiB part.
+
+### Large STL verification in 0.22
+
+Two disconnected copies of a dense generated sphere/socket fixture were exported
+to binary STL and then imported through the application's real multipart endpoint.
+This is synthetic geometry, not a benchmark of a production miniature.
+
+| Part | STL bytes | MiB | Triangles |
+| --- | ---: | ---: | ---: |
+| Socket | 205,845,284 | 196.31 | 4,116,904 |
+| Key | 131,072,084 | 125.00 | 2,621,440 |
+
+Final HTTP measurements on the cloud workspace (4 CPU quota, 32 GiB RAM):
+
+- Upload and preparation of both files: **23.265 s**.
+- First complete analysis: **27.873 s** wall time, **27.87 s** reported worker time.
+- Repeated complete analysis: **0.004 s** HTTP wall time, one reused pair and no recomputation.
+- Streaming the 205,845,284-byte socket back through the STL endpoint: **0.683 s**;
+  the byte length and binary triangle count matched.
+- The result was `WITHIN_TOLERANCE`, and two fresh manual checklist entries were
+  created without marking either reviewed.
+- Server high-water RSS after the run: **7,948,716 KiB** (about **7.58 GiB**).
+  Memory use depends on geometry, allocator behavior and platform, and can exceed
+  file size by a large factor.
+
+The server checks used new HTTP connections to avoid an idle keepalive race in
+the test client. A transient browser polling reset is covered by a separate
+automated recovery test. These measurements include API import, computation and
+STL transfer; browser parsing/rendering of these two large files was not timed.
+GUI interaction and rendering regression tests use smaller fixtures. Windows
+performance has not been measured in this Linux environment.
+
+The generated large files are not included in the repository. The benchmark
+module accepts two user-supplied STL paths with `--files`; it reads them without
+modification and reports file sizes, face counts, preparation and cold/reused
+analysis times.
 
 ## Verification
 
-Tests check a dense STL socket without building eroded source meshes, compare the fast path with forced full erosion around the margin at rotated orientations, exercise a diagonal case that must fall back, retain the existing deep-needle and mixed-region regressions, and verify reuse, fresh checklist creation, unchanged overlay bytes, new/deleted parts, uncertain retries and margin invalidation.
+Tests check a dense STL socket without building eroded source meshes, compare the fast path with forced full erosion around the margin at rotated orientations, exercise a diagonal case that must fall back, retain the existing deep-needle and mixed-region regressions, and verify reuse, fresh checklist creation, unchanged overlay bytes, new/deleted parts, uncertain retries and margin invalidation. Additional tests cover actual upload length, direct spool reuse, shared worker identity, cancellation lifetime, bounded valid STL chunks, lazy/reused collision structures, exact dense-pair witnesses, one combined analysis action, EN/PL labels and recovery from a transient polling reset.

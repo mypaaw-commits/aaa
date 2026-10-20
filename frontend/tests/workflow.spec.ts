@@ -5,6 +5,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
+  await expect(page.locator('.analysis-controls button')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeDisabled();
   await expect(page.getByRole('heading', { name: 'No model loaded' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('empty.png') });
   await expect(page.getByRole('button', { name: 'Choose STL files', exact: true })).toBeEnabled();
@@ -17,8 +19,9 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.screenshot({ path: testInfo.outputPath('selection.png') });
   await expect(page.locator('.review-row')).toHaveCount(3);
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await expect(page.locator('#relations-panel .connection-group-toggle')).toHaveCount(3);
   await expect(page.locator('#relations-panel .result-pair')).toHaveCount(0);
   await page.getByRole('button', { name: 'Connections of A.stl', exact: true }).click();
@@ -27,7 +30,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await expect(page.locator('#relations-panel .pair-symbol svg')).toHaveClass(/lucide-link/);
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('connections.png') });
-  await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
+  await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(3);
+  await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await page.waitForTimeout(300);
   await page.getByRole('button', { name: 'Select pair: A.stl / B.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
@@ -45,7 +49,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath('selected-pair.png') });
   await page.getByRole('button', { name: 'Back to full model', exact: true }).click();
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(3);
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(2);
   await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
@@ -74,8 +78,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.getByRole('textbox', { name: 'Notes: B.stl', exact: true }).fill('Inspect the peg before printing.');
   await page.getByRole('textbox', { name: 'Notes: B.stl', exact: true }).blur();
   await page.screenshot({ path: testInfo.outputPath('notes.png') });
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Check intersections', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(bReview).toBeChecked();
   await expect(page.getByRole('textbox', { name: 'Notes: B.stl', exact: true })).toHaveValue('Inspect the peg before printing.');
@@ -85,7 +89,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await expect(page.locator('.checks-pairs-section .result-pair')).toHaveCount(0);
   await expect(page.getByLabel('Show intersections', { exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(4);
   await expect(page.locator('.review-row input:disabled')).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -96,7 +100,7 @@ test('Three overlapping objects group checks and keep a unique pair total', asyn
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   await page.locator('input[type=file]').setInputFiles([stlBox('base without socket.stl', 0, 8), stlBox('base.stl', 1, 8), stlBox('base with socket.stl', 2, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(3);
   await expect(page.locator('.check-section-toggle .count')).toHaveText('3');
   await page.getByRole('button', { name: 'Intersections of base.stl', exact: true }).click();

@@ -12,7 +12,8 @@ test('Selection leaves the camera unchanged; Blender orbit, pan, zoom and framin
   let before = await canvas.screenshot();
   await b.locator('.object-select').click();
   await a.locator('.object-select').click();
-  expect(Buffer.compare(before, await canvas.screenshot())).toBe(0);
+  // Material updates reach the canvas on the next rendered frame.
+  await expect.poll(async () => Buffer.compare(before, await canvas.screenshot())).toBe(0);
   const bounds = (await canvas.boundingBox())!;
   const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
   await page.mouse.move(x, y);

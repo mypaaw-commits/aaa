@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Box, Grid2X2, Layers2, Languages, Link2, ScanLine, Upload, Eye, LoaderCircle, Maximize, Search, SquareDashedMousePointer, BoxSelect, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Box, Grid2X2, Layers2, Languages, ScanLine, Upload, Eye, LoaderCircle, Maximize, Search, SquareDashedMousePointer, BoxSelect, TriangleAlert, X } from 'lucide-react';
 import { Viewer } from './Viewer';
 import { CameraControls } from './CameraControls';
 import { ObjectMenu } from './ObjectMenu';
@@ -11,7 +11,7 @@ import type { TextKey, Values } from './i18n';
 import type { ObjectMenuState } from './ObjectMenu';
 import type { CameraView, Projection, ViewerHandle } from './Viewer';
 import { api, partColors } from './types';
-import type { AnalysisResult, CheckKind, CheckTask, Job, Part, Relation } from './types';
+import type { AnalysisResult, CheckTask, Job, Part, Relation } from './types';
 import './style.css';
 
 type Imported = { parts: Omit<Part, 'visible'>[]; errors: { name: string; message: string }[] };
@@ -64,22 +64,27 @@ export default function App() {
   useEffect(() => {
     if (!session || job?.state !== 'running') return;
     let stopped = false;
+    let networkFailures = 0;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const result = await api<AnalysisResult>(`/sessions/${session}/analysis`);
         if (stopped) return;
+        networkFailures = 0;
         if (!result.job) throw new Error('Brak wyniku analizy.');
         setJob(result.job);
         if (result.job.state === 'running') timer = setTimeout(poll, 400);
         else {
           setRelations(result.relations);
           setTasks(result.tasks);
-          if (result.job.state === 'done' && result.job.check === 'INTERSECTIONS') setIntersections(true);
+          if (result.job.state === 'done') setIntersections(true);
           if (result.job.state === 'error') setError(result.job.error ?? 'Analiza nie powiodła się.');
           else setNotice({ key: 'analysisFinished', values: { count: result.job.total, seconds: result.job.seconds.toFixed(2) } });
         }
       } catch (err) {
+        if (!stopped && err instanceof TypeError && ++networkFailures <= 3) {
+          timer = setTimeout(poll, 400); return;
+        }
         if (!stopped) { setError((err as Error).message); setJob(previous => previous ? { ...previous, state: 'error' } : null); }
       }
     };
@@ -116,7 +121,7 @@ export default function App() {
       const form = new FormData(); const valid: File[] = [];
       for (const file of Array.from(files)) {
         if (!file.name.toLowerCase().endsWith('.stl')) throw new Error('Wybierz pliki w formacie STL.');
-        if (file.size > 100 * 1024 * 1024) throw new Error(`${file.name}: Maksymalny rozmiar jednego STL to 100 MB.`);
+        if (file.size > 200 * 1024 * 1024) throw new Error(`${file.name}: Maksymalny rozmiar jednego STL to 200 MB.`);
         valid.push(file); form.append('files', file);
       }
       const duplicates = valid.some(file => parts.some(part => part.name === file.name)) || new Set(valid.map(file => file.name)).size < valid.length;
@@ -127,14 +132,14 @@ export default function App() {
     } catch (err) { setError((err as Error).message); setNotice(null); }
     finally { setLoading(false); }
   }
-  async function analyze(check: CheckKind = 'RELATIONS') {
+  async function analyze() {
     setLoading(true); setError(''); setNotice(null);
     try {
       await reviewQueue.current;
-      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ check }) });
+      const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       // Always poll once: a small model can finish before POST returns.
       setJob({ ...result, state: 'running' });
-      setPanelTab(check === 'INTERSECTIONS' ? 'checks' : 'relations');
+      setPanelTab('checks');
     } catch (err) { setError((err as Error).message); }
     finally { setLoading(false); }
   }
@@ -249,7 +254,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); queueImport(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) queueImport(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.21</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.22</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <span className="import-queue" aria-live="polite">{queuedFiles.length > 0 ? t('importQueued', { count: queuedFiles.length }) : ''}</span>
@@ -277,12 +282,11 @@ export default function App() {
       <section className="center" aria-label={t('workspace')}>
         <section className="analysis-panel">
           <div className="analysis-controls">
-            <button className="button analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{job?.state === 'running' && job.check === 'RELATIONS' ? <LoaderCircle size={16} className="spin" /> : <Link2 size={16} />}{t(job?.state === 'running' && job.check === 'RELATIONS' ? 'checking' : 'checkConnections')}</button>
-            <button className="button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze('INTERSECTIONS')}>{job?.state === 'running' && job.check === 'INTERSECTIONS' ? <LoaderCircle size={16} className="spin" /> : <ScanLine size={16} />}{t(job?.state === 'running' && job.check === 'INTERSECTIONS' ? 'checking' : 'checkIntersections')}</button>
+            <button className="button analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{job?.state === 'running' ? <LoaderCircle size={16} className="spin" /> : <ScanLine size={16} />}{t(job?.state === 'running' ? 'analyzing' : 'analyze')}</button>
           </div>
           <div className="analysis-result">
             <label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label>
-            <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? job.check === 'INTERSECTIONS' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : t('connectionsFound') : ''}{job?.state === 'done' && job.check === 'INTERSECTIONS' && fitCount > 0 && ` · ${t('withinToleranceCount', { count: fitCount })}`}</span>
+            <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : ''}{job?.state === 'done' && fitCount > 0 && ` · ${t('withinToleranceCount', { count: fitCount })}`}</span>
           </div>
           {fitTolerance !== null && <span className="fit-margin" title={t('fitMarginTip')}>{t('fitMargin', { value: fitTolerance.toLocaleString(language, { maximumFractionDigits: 6 }) })}</span>}
           {job?.state === 'running' && <progress aria-label={t('analysisProgress')} max={job.total} value={job.completed} />}

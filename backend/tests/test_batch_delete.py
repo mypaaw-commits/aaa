@@ -5,7 +5,7 @@ from backend.tests.test_api import analyze, client, session
 def test_batch_delete_removes_parts_and_links_and_invalidates_remaining_reviews():
     sid = session()
     parts = client.post(f'/api/sessions/{sid}/demo').json()['parts']
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     kept = next(task for task in checked['tasks'] if task['part_id'] == parts[2]['id'])
     client.patch(f"/api/sessions/{sid}/tasks/{kept['id']}", json={'done': True, 'note': 'Keep this note'})
     response = client.request('DELETE', f'/api/sessions/{sid}/parts', json={'part_ids': [part['id'] for part in parts[:2]]})
@@ -25,7 +25,7 @@ def test_batch_delete_removes_parts_and_links_and_invalidates_remaining_reviews(
 def test_batch_delete_is_atomic_and_rejects_empty_or_invalid_requests():
     sid = session()
     parts = client.post(f'/api/sessions/{sid}/demo').json()['parts']
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     for body, code in [({'part_ids': [parts[0]['id'], 'missing']}, 404), ({'part_ids': []}, 422),
                        ({'part_ids': [parts[0]['id']], 'other': True}, 422)]:
         assert client.request('DELETE', f'/api/sessions/{sid}/parts', json=body).status_code == code

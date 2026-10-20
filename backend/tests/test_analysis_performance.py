@@ -68,7 +68,7 @@ def test_cached_pairs_reused_across_checks_and_only_new_pairs_computed(monkeypat
     assert first['job']['computed'] == 3 and first['job']['reused'] == 0
     rid = next(row['id'] for row in first['relations'] if row['kind'] == 'INTERSECTION')
     original_mesh = client.get(f'/api/sessions/{sid}/relations/{rid}/intersection').content
-    repeated = analyze(sid, {'check': 'INTERSECTIONS'})
+    repeated = analyze(sid, {'check': 'ANALYSIS'})
     assert len(calls) == 3
     assert repeated['job']['computed'] == 0 and repeated['job']['reused'] == 3
     assert repeated['relations'] == first['relations']
@@ -78,10 +78,10 @@ def test_cached_pairs_reused_across_checks_and_only_new_pairs_computed(monkeypat
     assert trimesh.load(io.BytesIO(cached_mesh.content), file_type='stl').volume == pytest.approx(32)
     fourth = box((30, 0, 0)).export(file_type='stl')
     assert client.post(f'/api/sessions/{sid}/parts', files=[('files', ('D.stl', fourth))]).status_code == 200
-    added = analyze(sid, {'check': 'INTERSECTIONS'})
+    added = analyze(sid, {'check': 'ANALYSIS'})
     assert len(calls) == 6 and added['job']['computed'] == 3 and added['job']['reused'] == 3
     assert client.delete(f"/api/sessions/{sid}/parts/{parts[0]['id']}").status_code == 200
-    removed = analyze(sid, {'check': 'INTERSECTIONS'})
+    removed = analyze(sid, {'check': 'ANALYSIS'})
     assert len(calls) == 6 and removed['job']['computed'] == 0 and removed['job']['reused'] == 3
     assert len(removed['tasks']) == 3
 

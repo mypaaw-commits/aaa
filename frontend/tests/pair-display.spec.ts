@@ -20,7 +20,7 @@ test('Transparency is independent of analysis, selection and intersection overla
   await expect(page.getByLabel('Show intersections', { exact: true })).toBeDisabled();
   await toggle.click();
   expect(Buffer.compare(opaque, await patch())).toBe(0);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByLabel('Show intersections', { exact: true })).toBeChecked();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await toggle.click();
@@ -35,8 +35,9 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   await page.locator('input[type=file]').setInputFiles([stlBox('original.stl', 0, 8), stlBox('copy.stl', 0, 8), stlBox('other.stl', 20, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Connections of copy.stl', exact: true }).click();
   await expect(page.locator('#relations-panel .coincident-label')).toHaveText('Coincident');
   await page.getByRole('button', { name: 'Select pair: copy.stl / original.stl', exact: true }).click();
@@ -48,7 +49,7 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
   await expect(page.locator('.object-row').filter({ hasText: 'other.stl' })).toHaveAttribute('aria-selected', 'false');
   await page.getByRole('button', { name: 'Inspect pair: copy.stl / original.stl', exact: true }).click();
   await expect(page.locator('.scene-label')).toContainText('2 / 3 visible');
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.review-status.has-coincident')).toHaveCount(2);
   await page.getByRole('button', { name: 'Intersections of copy.stl', exact: true }).click();
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);

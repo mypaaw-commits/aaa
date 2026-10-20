@@ -85,7 +85,7 @@ test('Soft is the only lighting and works with selection, transparency and resul
   const canvas = page.locator('canvas');
   await expect(page.getByRole('combobox', { name: 'Lighting', exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('viewport-soft.png') });
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
   await expect(page.getByRole('checkbox', { name: 'Show intersections', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
@@ -126,7 +126,7 @@ test('Numpad camera controls do not interfere with search and notes', async ({ p
   await expect(page.getByRole('combobox', { name: 'Projection', exact: true })).toHaveValue('perspective');
   expect(Buffer.compare(before, await canvas.screenshot())).toBe(0);
   await page.getByRole('button', { name: 'Search objects', exact: true }).click();
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair');
   await page.getByRole('checkbox', { name: 'Show intersections', exact: true }).uncheck();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();

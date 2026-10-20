@@ -6,7 +6,7 @@ test('Delete selected removes a batch, Delete works on the list, and the empty s
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await loadExample(page);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair');
   const rows = page.locator('.object-row');
   await rows.filter({ hasText: 'A.stl' }).locator('.object-select').click();
@@ -81,8 +81,8 @@ test('Additional imports queue during analysis and upload, then leave isolation 
     await route.continue();
   });
   const importButton = page.getByRole('button', { name: 'Import STL', exact: true });
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Checking…', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Analyzing…', exact: true })).toBeDisabled();
   await expect(importButton).toBeEnabled();
   const chooser = page.waitForEvent('filechooser');
   await importButton.click();

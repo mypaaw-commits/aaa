@@ -32,10 +32,7 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   const contactRequests: string[] = [];
   page.on('request', request => { if (request.url().endsWith('/contact')) contactRequests.push(request.url()); });
   const image = await page.locator('canvas').screenshot();
-  await page.getByRole('button', { name: 'Find connections', exact: true }).click();
-  await expect(page.locator('.analysis-heading')).toHaveText('Connections updated');
-  expect(Buffer.compare(image, await page.locator('canvas').screenshot())).toBe(0);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   const intersections = page.getByRole('checkbox', { name: 'Show intersections', exact: true });
   await expect(intersections).toBeChecked();
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
@@ -74,7 +71,7 @@ test('Real intersections stay red alongside independent within-tolerance pairs',
   await page.locator('input[type=file]').setInputFiles([stlBox('C.stl', 20, 4), stlBox('D.stl', 23.5, 4)]);
   await expect(page.locator('.object-row')).toHaveCount(4);
   await page.getByRole('button', { name: 'Floor', exact: true }).click();
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair · 1 within tolerance');
   await expect.poll(async () => (await viewPixels(page)).teal).toBeGreaterThan(20);
   await expect.poll(async () => (await viewPixels(page)).red).toBeGreaterThan(50);

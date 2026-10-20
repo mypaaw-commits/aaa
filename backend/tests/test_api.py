@@ -25,13 +25,14 @@ def analyze(sid, payload=None):
     pytest.fail('Analysis timed out')
 
 
-def test_relations_are_information_and_only_explicit_check_creates_tasks():
+def test_one_analysis_creates_connections_and_manual_checklist_together():
     sid = session()
     parts = client.post(f'/api/sessions/{sid}/demo').json()['parts']
     result = analyze(sid)
     assert result['job']['total'] == 3
-    assert result['job']['check'] == 'RELATIONS'
-    assert result['tasks'] == []
+    assert result['job']['check'] == 'ANALYSIS'
+    assert len(result['tasks']) == 3
+    assert result['tasks'] and all(not task['done'] for task in result['tasks'])
     assert len({row['id'] for row in result['relations']}) == 3
     assert sorted(row['kind'] for row in result['relations']) == ['CONNECTED', 'DISCONNECTED', 'INTERSECTION']
     assert all('status' not in row and 'note' not in row for row in result['relations'])
@@ -41,7 +42,7 @@ def test_relations_are_information_and_only_explicit_check_creates_tasks():
     data = client.get(path + '/intersection')
     mesh = trimesh.load(io.BytesIO(data.content), file_type='stl')
     assert mesh.volume == pytest.approx(32)
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     assert len(checked['tasks']) == 3
     assert all(not task['done'] and not task['stale'] for task in checked['tasks'])
     a, b, c = [next(task for task in checked['tasks'] if task['part_id'] == part['id']) for part in parts]
@@ -54,7 +55,7 @@ def test_relations_are_information_and_only_explicit_check_creates_tasks():
     assert len(again['tasks']) == 3
     assert next(task for task in again['tasks'] if task['id'] == b['id'])['done'] is True
     assert next(task for task in again['tasks'] if task['id'] == c['id'])['done'] is False
-    repeated = analyze(sid, {'check': 'INTERSECTIONS'})
+    repeated = analyze(sid, {'check': 'ANALYSIS'})
     assert len(repeated['tasks']) == 3
     assert next(task for task in repeated['tasks'] if task['id'] == b['id'])['done'] is True
     assert client.delete(f"/api/sessions/{sid}/parts/{parts[2]['id']}").status_code == 200
@@ -63,7 +64,7 @@ def test_relations_are_information_and_only_explicit_check_creates_tasks():
     assert len(changed['tasks']) == 2
     assert all(task['stale'] and not task['done'] for task in changed['tasks'])
     assert client.patch(task_path, json={'done': True}).status_code == 409
-    refreshed = analyze(sid, {'check': 'INTERSECTIONS'})
+    refreshed = analyze(sid, {'check': 'ANALYSIS'})
     assert all(task['result'] == 'CLEAR' and not task['done'] and not task['stale'] for task in refreshed['tasks'])
     assert next(task for task in refreshed['tasks'] if task['id'] == b['id'])['note'] == 'Sprawdzono B'
 
@@ -90,8 +91,9 @@ def test_coincident_pairs_are_reported_and_remain_manual_intersection_checks():
     assert response.status_code == 200
     result = analyze(sid)
     assert result['relations'][0]['coincident'] is True
-    assert result['tasks'] == []
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    assert len(result['tasks']) == 2
+    assert result['tasks'] and all(not task['done'] for task in result['tasks'])
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     assert len(checked['tasks']) == 2
     assert all(task['coincident_pairs'] == 1 and task['intersections'] == 1 and task['result'] == 'INTERSECTION' and not task['done'] for task in checked['tasks'])
 
@@ -126,17 +128,17 @@ def test_abandoned_session_can_release_memory():
 def test_import_invalidates_old_checks_without_creating_new_ones():
     sid = session()
     client.post(f'/api/sessions/{sid}/demo')
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     task = checked['tasks'][0]
     path = f"/api/sessions/{sid}/tasks/{task['id']}"
     assert client.patch(path, json={'done': True, 'note': 'Zachowaj uwagę'}).status_code == 200
     mesh = trimesh.creation.box(); mesh.apply_translation([100, 0, 0])
     response = client.post(f'/api/sessions/{sid}/parts', files=[('files', ('D.stl', mesh.export(file_type='stl')))])
     assert len(response.json()['parts']) == 1
-    stale = analyze(sid)
+    stale = client.get(f'/api/sessions/{sid}/analysis').json()
     assert len(stale['tasks']) == 3
     assert all(task['stale'] and not task['done'] for task in stale['tasks'])
-    fresh = analyze(sid, {'check': 'INTERSECTIONS'})
+    fresh = analyze(sid, {'check': 'ANALYSIS'})
     assert len(fresh['tasks']) == 4
     assert all(not task['done'] and not task['stale'] for task in fresh['tasks'])
     assert next(row for row in fresh['tasks'] if row['id'] == task['id'])['note'] == 'Zachowaj uwagę'
@@ -148,7 +150,7 @@ def test_uncertain_mesh_creates_uncertain_unchecked_tasks():
     broken = good.copy(); broken.update_faces(np.arange(11))
     result = client.post(f'/api/sessions/{sid}/parts', files=[('files', ('A.stl', good.export(file_type='stl'))), ('files', ('B.stl', broken.export(file_type='stl')))])
     assert len(result.json()['parts']) == 2
-    checked = analyze(sid, {'check': 'INTERSECTIONS'})
+    checked = analyze(sid, {'check': 'ANALYSIS'})
     assert len(checked['tasks']) == 2
     assert all(task['result'] == 'UNCERTAIN' and not task['done'] for task in checked['tasks'])
 
@@ -157,7 +159,8 @@ def test_connections_remain_informational_without_contact_area_geometry():
     sid = session()
     client.post(f'/api/sessions/{sid}/demo')
     result = analyze(sid)
-    assert result['tasks'] == []
+    assert len(result['tasks']) == 3
+    assert result['tasks'] and all(not task['done'] for task in result['tasks'])
     row = next(row for row in result['relations'] if row['kind'] == 'CONNECTED')
     assert 'contact_area' not in row
     assert client.get(f"/api/sessions/{sid}/relations/{row['id']}/contact").status_code == 404
@@ -171,7 +174,7 @@ def test_partial_contact_does_not_hide_intersection_elsewhere():
         b = trimesh.creation.box(extents=[2, 2, 2]); b.apply_translation([x, y, 0]); b_parts.append(b)
     a, b = trimesh.util.concatenate(a_parts), trimesh.util.concatenate(b_parts)
     client.post(f'/api/sessions/{sid}/parts', files=[('files', ('A.stl', a.export(file_type='stl'))), ('files', ('B.stl', b.export(file_type='stl')))])
-    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    result = analyze(sid, {'check': 'ANALYSIS'})
     row = result['relations'][0]
     assert row['kind'] == 'INTERSECTION'
     assert row['volume'] == pytest.approx(2)
@@ -186,8 +189,8 @@ def test_boolean_fit_is_separate_from_intersections_and_remains_manually_reviewe
     assert client.post(f'/api/sessions/{sid}/parts', files=files).status_code == 200
     information = analyze(sid)
     assert information['relations'][0]['kind'] == 'WITHIN_TOLERANCE'
-    assert information['tasks'] == []
-    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    assert len(information['tasks']) == 2 and all(not task['done'] for task in information['tasks'])
+    result = analyze(sid, {'check': 'ANALYSIS'})
     assert result['job']['fit_tolerance'] == .001
     row = result['relations'][0]
     assert row['fit_tolerance'] == .001
@@ -197,6 +200,6 @@ def test_boolean_fit_is_separate_from_intersections_and_remains_manually_reviewe
     assert trimesh.load(io.BytesIO(data.content), file_type='stl').area > 0
     task = result['tasks'][0]
     assert client.patch(f"/api/sessions/{sid}/tasks/{task['id']}", json={'done': True, 'note': 'Fit reviewed'}).status_code == 200
-    repeated = analyze(sid, {'check': 'INTERSECTIONS'})
+    repeated = analyze(sid, {'check': 'ANALYSIS'})
     assert next(t for t in repeated['tasks'] if t['id'] == task['id'])['done'] is True
     assert sum(t['done'] for t in repeated['tasks']) == 1

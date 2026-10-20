@@ -57,7 +57,7 @@ test('Object order changes by drag and keyboard without changing selection or ch
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   const a = rows.filter({ hasText: 'A.stl' });
   await a.locator('.object-select').click();
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   const checked = page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true });
   await checked.check();

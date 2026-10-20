@@ -1,6 +1,6 @@
 """Read-only mesh analysis. All coordinates and distances are in millimetres."""
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cached_property, lru_cache
 import numpy as np
 import trimesh
 import fcl
@@ -8,15 +8,25 @@ import manifold3d
 
 CONNECTION_EPS = 1e-5  # numerical tolerance, NOT a manufacturing tolerance
 FIT_TOLERANCE = .001  # mm: user-selected allowance for STL/Boolean surface noise
+DENSE_PROBE_MIN_FACES = 50000
 
 
 @dataclass
 class Shape:
     mesh: trimesh.Trimesh
-    collision: object
     solid: bool
     manifold: object | None
     cores: dict = field(default_factory=dict)
+
+    @cached_property
+    def collision(self):
+        # Many dense pairs finish in the Boolean engine or the bounding-box rejection.
+        # Build the separate FCL hierarchy only for a surface-distance query.
+        model = fcl.BVHModel()
+        model.beginModel(len(self.mesh.vertices), len(self.mesh.faces))
+        model.addSubModel(np.asarray(self.mesh.vertices, dtype=np.float64), np.asarray(self.mesh.faces, dtype=np.int32))
+        model.endModel()
+        return fcl.CollisionObject(model)
 
 
 def prepare(mesh: trimesh.Trimesh) -> Shape:
@@ -25,10 +35,6 @@ def prepare(mesh: trimesh.Trimesh) -> Shape:
     mesh.merge_vertices()
     if not len(mesh.faces) or not np.isfinite(mesh.vertices).all():
         raise ValueError('Pusta siatka lub nieprawidłowe współrzędne.')
-    model = fcl.BVHModel()
-    model.beginModel(len(mesh.vertices), len(mesh.faces))
-    model.addSubModel(np.asarray(mesh.vertices, dtype=np.float64), np.asarray(mesh.faces, dtype=np.int32))
-    model.endModel()
     solid = bool(mesh.is_volume)
     manifold = None
     if solid:
@@ -36,7 +42,10 @@ def prepare(mesh: trimesh.Trimesh) -> Shape:
             vert_properties=np.asarray(mesh.vertices, dtype=np.float64),
             tri_verts=np.asarray(mesh.faces, dtype=np.uint64)))
         solid = manifold.status() == manifold3d.Error.NoError
-    return Shape(mesh, fcl.CollisionObject(model), solid, manifold)
+    # Validation creates large temporary triangle/edge arrays. Keep only the small
+    # cached measurements used later, rather than retaining another mesh-sized copy.
+    mesh._cache.clear(exclude=['bounds', 'mass_properties', 'is_volume', 'is_watertight', 'is_winding_consistent'])
+    return Shape(mesh, solid, manifold)
 
 
 def bounds_distance(a: Shape, b: Shape) -> float:
@@ -60,7 +69,7 @@ def tolerance_probes(tolerance):
     return tuple(tuple(float(value) for value in vertices[index]) for index in indices)
 
 
-def certifies_surface_band(source: Shape, common, tolerance: float) -> bool:
+def certifies_surface_band(source: Shape, common, tolerance: float, extended=False) -> bool:
     """Cheap sufficient test; a nonempty remainder proves nothing and needs the full erosion.
 
     A⊖K is contained in every A-v for v in K. Intersecting common with a subset
@@ -71,7 +80,11 @@ def certifies_surface_band(source: Shape, common, tolerance: float) -> bool:
     """
     remaining = common
     try:
-        for vertex in tolerance_probes(tolerance):
+        probes = tolerance_probes(tolerance)
+        if extended:
+            vertices = tolerance_kernel(tolerance).to_mesh64().vert_properties[:, :3]
+            probes = tuple(dict.fromkeys((*probes, *(tuple(float(v) for v in point) for point in vertices))))
+        for vertex in probes:
             remaining = remaining ^ source.manifold.translate(tuple(-value for value in vertex))
             if remaining.status() != manifold3d.Error.NoError:
                 return False  # The original exact test remains the fallback.
@@ -82,16 +95,56 @@ def certifies_surface_band(source: Shape, common, tolerance: float) -> bool:
     return False
 
 
+def certifies_core_overlap(source: Shape, other: Shape, common: trimesh.Trimesh, tolerance: float, start=0, stop=None) -> bool:
+    """Sufficient deep-overlap witness using small convex kernel copies.
+
+    For convex K, K + eK = (1+e)K. If P+(1+e)K is contained in source,
+    P+eK is contained in its eroded core. A positive-volume intersection
+    of that witness with the other part proves that the full core test is
+    nonempty. Candidate points need not themselves be inside either solid.
+    """
+    kernel = tolerance_kernel(tolerance)
+    # Face interiors also cover a deep overlap whose vertices lie on other source
+    # faces (e.g. the corners of a thin box/box overlap). Samples only propose
+    # candidates: every accepted witness still needs two exact solid operations.
+    face_ids = np.unique(np.linspace(0, len(common.faces) - 1, min(32, len(common.faces)), dtype=np.intp))
+    candidates = np.asarray(common.vertices)[np.asarray(common.faces)[face_ids]].mean(axis=1)
+    witness = kernel.scale((.02, .02, .02))
+    outer = kernel.scale((1.02, 1.02, 1.02))
+    try:
+        for candidate in candidates[start:stop]:
+            point = tuple(float(v) for v in candidate)
+            outside = outer.translate(point) - source.manifold
+            if outside.status() != manifold3d.Error.NoError or not outside.is_empty():
+                continue
+            inside = witness.translate(point) ^ other.manifold
+            if inside.status() == manifold3d.Error.NoError and not inside.is_empty():
+                volume = abs(float(inside.volume()))
+                if np.isfinite(volume) and volume > 0:
+                    return True
+    except (ValueError, RuntimeError):
+        return False
+    return False
+
+
 def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: float, solid_common) -> bool:
     smaller = min(abs(a.mesh.volume), abs(b.mesh.volume))
-    if abs(common.volume) >= smaller * (1 - 1e-8):
+    volume = abs(float(solid_common.volume()))
+    if volume >= smaller * (1 - 1e-8):
         return False  # Containment of a small/thin part is never a fit.
-    if abs(common.volume) > tolerance * common.area:
+    if volume > tolerance * solid_common.surface_area():
         return False  # Cheap candidate filter; acceptance requires both tests below.
     for source, other in sorted(((a, b), (b, a)), key=lambda pair: len(pair[0].mesh.faces)):
         if tolerance not in source.cores:
             if certifies_surface_band(source, solid_common, tolerance):
                 continue
+            if len(source.mesh.faces) >= DENSE_PROBE_MIN_FACES:
+                if certifies_core_overlap(source, other, common, tolerance, stop=8):
+                    return False
+                if certifies_surface_band(source, solid_common, tolerance, extended=True):
+                    continue
+                if certifies_core_overlap(source, other, common, tolerance, start=8):
+                    return False
             core = source.manifold.minkowski_difference(tolerance_kernel(tolerance))
             if core.status() != manifold3d.Error.NoError:
                 raise ValueError('Nie można zweryfikować marginesu dopasowania.')
@@ -108,6 +161,10 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
     """Returns metadata and optional exact Boolean intersection mesh."""
     if not np.isfinite(tolerance) or tolerance < 0:
         raise ValueError('Nieprawidłowy margines dopasowania.')
+    # A stable operand order also avoids UUID-dependent Boolean triangulations.
+    # It changes neither the input meshes nor the intersection being computed.
+    if (len(a.mesh.faces), hash(a.mesh)) < (len(b.mesh.faces), hash(b.mesh)):
+        a, b = b, a
     base = {'kind': 'UNCERTAIN', 'volume': None, 'message': '', 'coincident': False,
             'fit_tolerance': tolerance}
     lower = bounds_distance(a, b)

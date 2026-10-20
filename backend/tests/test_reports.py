@@ -34,7 +34,7 @@ def test_pdf_reports_unrun_partial_and_complete_review_without_hiding_errors():
     assert 'MANUAL REVIEW INCOMPLETE' in unrun
     assert 'Reviewed: 0 / 3' in unrun
     assert 'Not checked' in unrun
-    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    result = analyze(sid, {'check': 'ANALYSIS'})
     for task in result['tasks'][:1]:
         client.patch(f"/api/sessions/{sid}/tasks/{task['id']}", json={'done': True, 'note': 'Reviewed a joint <socket> & peg.'})
     partial, _ = extract(client.post(path, json={'part_ids': [part['id'] for part in reversed(parts)]}))
@@ -54,7 +54,7 @@ def test_pdf_reports_unrun_partial_and_complete_review_without_hiding_errors():
 
 def test_pdf_stale_and_new_parts_are_unreviewed_but_notes_are_retained():
     sid, _ = demo()
-    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    result = analyze(sid, {'check': 'ANALYSIS'})
     for task in result['tasks']:
         client.patch(f"/api/sessions/{sid}/tasks/{task['id']}", json={'done': True, 'note': 'Keep this note'})
     mesh = trimesh.creation.box(); mesh.apply_translation([100, 0, 0])
@@ -71,7 +71,7 @@ def test_pdf_polish_names_notes_duplicate_identity_and_timezone():
     sid = client.post('/api/sessions').json()['id']
     mesh = trimesh.creation.box().export(file_type='stl')
     client.post(f'/api/sessions/{sid}/parts', files=[('files', ('Żółć.stl', mesh)), ('files', ('Żółć.stl', mesh))])
-    result = analyze(sid, {'check': 'INTERSECTIONS'})
+    result = analyze(sid, {'check': 'ANALYSIS'})
     task = result['tasks'][0]
     client.patch(f"/api/sessions/{sid}/tasks/{task['id']}", json={'done': True, 'note': 'Sprawdzono łączenie. <b>To tekst</b> & całość.'})
     text, reader = extract(client.post(f'/api/sessions/{sid}/report', json={'language': 'pl', 'utc_offset_minutes': 120}))

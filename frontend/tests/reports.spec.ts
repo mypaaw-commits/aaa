@@ -10,7 +10,7 @@ test('PDF download waits for the final note and includes hidden parts in manual 
   await page.keyboard.press('Alt+ArrowUp');
   await page.getByTitle('Hide C.stl', { exact: true }).click();
   const order = await page.locator('.object-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-id')));
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Export PDF', exact: true })).toBeEnabled();
   await page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true }).check();
@@ -44,7 +44,7 @@ test('PDF download waits for the final note and includes hidden parts in manual 
 test('A failed review save blocks PDF export until the edit succeeds; Polish export downloads', async ({ page }) => {
   await page.goto('/');
   await loadExample(page);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   let failed = false;
   await page.route('**/api/sessions/*/tasks/*', async route => {

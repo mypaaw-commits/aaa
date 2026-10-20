@@ -14,7 +14,7 @@ test('Checks collapse by category and object; checklist is a separate tab', asyn
   await expect(page.locator('#checklist-panel .review-row')).toHaveCount(3);
   await expect(page.locator('#checks-panel')).toBeHidden();
   await expect(page.locator('#checklist-panel input[type=checkbox]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(checks).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#checks-panel .review-row')).toHaveCount(0);
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(2);
@@ -61,7 +61,7 @@ test('The same selection blue is used for ordinary, multiple and inspected objec
   await b.locator('.object-select').click({ modifiers: ['Control'] });
   await expect(b.locator('.part-swatch')).toHaveCSS('background-color', blue);
   await expect(a.locator('.part-swatch')).toHaveCSS('background-color', blue);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
   await page.getByRole('button', { name: 'Inspect pair: B.stl / C.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true] .part-swatch')).toHaveCount(2);
@@ -80,7 +80,7 @@ test('Uncertain pairs are exposed separately and each result has one inspection 
   broken.buffer = Buffer.from(broken.buffer.toString().replace(/facet normal[^]*?endfacet\n/, ''));
   await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0), broken]);
   await expect(page.locator('.object-row')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
+  await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Needs review', exact: true })).toBeVisible();
   await expect(page.locator('.category-intersections')).toContainText('No intersections found');
   await page.getByRole('button', { name: 'Intersections of A.stl', exact: true }).click();
