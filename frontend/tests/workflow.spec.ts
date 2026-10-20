@@ -19,8 +19,10 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.screenshot({ path: testInfo.outputPath('selection.png') });
   await expect(page.locator('.review-row')).toHaveCount(3);
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
+  const overlay = page.waitForResponse(response => response.url().endsWith('/intersection') && response.ok());
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
+  await (await overlay).finished();
   await page.getByRole('tab', { name: 'Connections', exact: true }).click();
   await expect(page.locator('#relations-panel .connection-group-toggle')).toHaveCount(3);
   await expect(page.locator('#relations-panel .result-pair')).toHaveCount(0);
@@ -38,6 +40,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
   await expect(page.locator('.object-row').filter({ hasText: 'B.stl' }).locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
   await expect(page.locator('.scene-label')).toContainText('3 / 3 visible');
+  // Material updates reach the WebGL canvas after the DOM selection is updated.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const before = await page.locator('canvas').screenshot();
   await page.getByRole('tab', { name: 'Checks', exact: true }).click();
   await page.getByRole('tab', { name: 'Checks', exact: true }).press('ArrowLeft');

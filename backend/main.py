@@ -15,8 +15,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 from backend.reports import checklist_pdf
 from backend.stl_stream import stl_chunks
+from backend.analysis_control import AnalysisCancelled, AnalysisControl, current_control
 
-app = FastAPI(title='ModelCheck 3D', version='0.22.0')
+app = FastAPI(title='ModelCheck 3D', version='0.23.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -116,7 +117,9 @@ def close_session(sid: str):
     # Called by pagehide/sendBeacon. An in-flight worker retains its own reference
     # until it finishes, but abandoned sessions need not keep large meshes alive.
     with lock:
-        sessions.pop(sid, None)
+        session = sessions.pop(sid, None)
+        if session and session.get('job') and session['job'].get('_control'):
+            session['job']['_control'].cancel()
     return {'ok': True}
 
 
@@ -211,8 +214,12 @@ def delete_parts(sid: str, request: DeletePartsRequest):
 def run_analysis(session, ids, job):
     pairs = list(combinations(ids, 2))
     results = {}
+    control = job.setdefault('_control', AnalysisControl(lambda name: job.update(stage=name)))
+    token = current_control.set(control)
     try:
         for i, (a, b) in enumerate(pairs):
+            control.check_cancelled()
+            job['part_ids'] = [a, b]
             rid = ':'.join(sorted([a, b]))
             cached = session['relations'].get(rid)
             # Imported shapes are immutable. Importing/deleting other parts or reviewing
@@ -226,6 +233,8 @@ def run_analysis(session, ids, job):
                 results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
                 job['computed'] += 1
             job['completed'] = i + 1
+        control.check_cancelled()
+        job['stage'] = 'results'
         session['relations'].update(results)
         tasks = {}
         for pid in ids:
@@ -244,11 +253,26 @@ def run_analysis(session, ids, job):
                           'coincident_pairs': coincident, 'fit_pairs': fits}
         session['tasks'].update(tasks)
         job['state'] = 'done'
+    except AnalysisCancelled:
+        # Cancelled runs publish no partial checklist or findings. Previous
+        # complete results and manual reviews remain intact.
+        job['state'] = 'cancelled'
     except Exception:
         job['state'] = 'error'; job['error'] = 'Nie udało się zakończyć analizy. Spróbuj mniejszego zestawu części.'
     finally:
         job['seconds'] = round(time.monotonic() - job['_start'], 2)
         session['busy'] = False
+        current_control.reset(token)
+
+
+@app.post('/api/sessions/{sid}/analysis/cancel')
+def cancel_analysis(sid: str):
+    with lock:
+        job = session_for(sid)['job']
+        if job and job['state'] == 'running':
+            job['_control'].cancel()
+            job['stage'] = 'stopping'
+    return {'ok': True}
 
 
 @app.post('/api/sessions/{sid}/analysis')
@@ -262,6 +286,8 @@ def start_analysis(sid: str, request: AnalysisRequest):
         job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
                'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': FIT_TOLERANCE,
                'reused': 0, 'computed': 0}
+        job['stage'] = 'bounds'
+        job['_control'] = AnalysisControl(lambda name: job.update(stage=name))
         session['job'] = job
         executor.submit(run_analysis, session, ids, job)
         return {key: val for key, val in job.items() if not key.startswith('_')}
@@ -271,7 +297,10 @@ def start_analysis(sid: str, request: AnalysisRequest):
 def analysis_state(sid: str):
     session = session_for(sid)
     job = session['job']
-    return {'job': {k: v for k, v in job.items() if not k.startswith('_')} if job else None,
+    public_job = {k: v for k, v in job.items() if not k.startswith('_')} if job else None
+    if job and job['state'] == 'running':
+        public_job['seconds'] = round(time.monotonic() - job['_start'], 1)
+    return {'job': public_job,
             'relations': [{k: v for k, v in row.items() if not k.startswith('_')} for row in session['relations'].values()],
             'tasks': list(session['tasks'].values())}
 

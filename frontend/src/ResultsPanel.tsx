@@ -44,6 +44,7 @@ export function ResultsPanel({ parts, relations, tasks, busy, tab, onTab, inspec
       <div className="pair-actions">
         <button className="inspect-button" aria-label={t('inspectPair', values)} onClick={() => inspect ? onInspect(relation) : onIsolate(relation)}><BoxSelect size={15} /><span>{t('inspect')}</span></button>
       </div>
+      {relation.reason === 'COMPUTATION_LIMIT' && <p className="pair-explanation"><TriangleAlert size={13} />{t('computationLimit')}</p>}
     </div>;
   }
   function objectGroups(rows: typeof pairs, category?: string) {

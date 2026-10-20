@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.22
+# ModelCheck 3D — prototype 0.23
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.22**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.23**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -72,7 +72,7 @@ The **Connections** tab lists informational links between directly connected par
 
 **Fit margin: 0.001 mm.** Boolean subtraction can leave tiny overlapping fragments after STL float32 export. These are classified separately as **Within tolerance**, shown in teal when the intersection overlay is enabled, and counted separately from red intersections in both the summary and part checklist. The raw volume and overlap geometry are retained. A fit still requires manual review.
 
-Acceptance checks the entire computed overlap against the surface bands of **both** valid solids using eroded Manifold3D cores. Small volume alone is insufficient: deep thin intrusions, containment and full coincidence keep their intersection classification. A cheap volume/area test rejects obvious candidates but never accepts a fit. The erosion uses an inscribed geodesic sphere, so the check is conservative near the threshold and may retain an intersection there. Numerical failures remain Needs review. The eroded cores are cached per part; the first analysis of a large mesh may take longer. Source positions and geometry remain unchanged.
+Acceptance checks the entire computed overlap against the surface bands of **both** valid solids using eroded Manifold3D cores. Small volume alone is insufficient: deep thin intrusions, containment and full coincidence keep their intersection classification. A cheap volume/area test rejects obvious candidates but never accepts a fit. The erosion uses an inscribed geodesic sphere, so the check is conservative near the threshold and may retain an intersection there. Numerical failures remain Needs review. Smaller-source eroded cores are cached per part. For dense sources, an inconclusive certificate now produces Needs review instead of attempting the costly whole-source erosion. Source positions and geometry remain unchanged.
 
 ![Boolean sphere/socket fragments within tolerance, shown in teal](docs/fitted-tolerance.png)
 
@@ -167,13 +167,15 @@ Ordinary selection and clicking a pair name do not move the camera. Pair framing
 
 ## Analysis performance
 
-Version 0.22 reads the existing multipart spool directly, creates the FCL surface hierarchy only when needed, releases large validation scratch arrays, and streams STL exports in bounded chunks. For dense near-margin pairs it additionally uses exact small solid witnesses and more kernel directions before resorting to full erosion. These optimizations preserve original coordinates and the same geometric tolerance; uncertain cases retain the full fallback.
+Since 0.22, import reads the existing multipart spool directly, creates extra surface hierarchies only when needed, releases large validation scratch arrays, and streams STL exports in bounded chunks. Dense near-margin pairs use exact small solid witnesses and additional kernel directions. In 0.23, surface distance reuses Manifold's existing hierarchy, avoiding the extra FCL copies altogether. These optimizations preserve original coordinates and the same geometric tolerance. Version 0.23 does not run the costly whole-source erosion on sources with at least 50,000 faces: if the certificates cannot resolve the margin, the pair remains **Needs review**, never Clear or Within tolerance.
 
-The analysis speeds up the fit-margin test without simplifying or moving imported meshes. A conservative geometric certificate handles typical shallow STL/Boolean roundoff; cases it cannot certify still use the original erosion test. The 0.001 mm margin is unchanged.
+The analysis speeds up the fit-margin test without simplifying or moving imported meshes. A conservative geometric certificate handles typical shallow STL/Boolean roundoff; smaller cases it cannot certify still use the original erosion test. The 0.001 mm margin is unchanged.
 
 Unchanged pairs reuse their geometry result across successive analyses, including intersection overlays. Importing a part computes only its new pairs. Deleting another part, visibility, selection, list ordering and manual reviews leave the pair geometry unchanged. Uncertain results are retried. Manual checklists still require explicit review, and model edits still make existing reviews out of date.
 
-On a generated STL sphere/socket pair with 13,648 triangles, a measured cold analysis went from **16.75 s to 0.071 s**. A larger pair with 212,232 triangles took about **1.28 s** in the new version. Timings exclude fixture generation/import and browser polling and depend on geometry and hardware. Difficult cases that need the full erosion can still take longer.
+On a generated STL sphere/socket pair with 13,648 triangles, a measured cold analysis went from **16.75 s to 0.071 s**. A larger pair with 212,232 triangles took about **1.28 s** in the new version. Timings exclude fixture generation/import and browser polling and depend on geometry and hardware. Those historical measurements compare 0.20 and 0.21. Current dense cases that cannot be certified are explicitly marked Needs review instead of starting an unbounded whole-source erosion.
+
+Version 0.23 also reduced the surface-contact analysis of two generated 125 MiB STL files from 18.68 s to 0.94 s, with peak process RSS decreasing from 4.31 GiB to 2.62 GiB. This excludes preparation and measures contact, not arbitrary positive-volume intersections.
 
 [Method, measurements and reproducible benchmark](docs/analysis-performance.md)
 
@@ -184,18 +186,18 @@ On a generated STL sphere/socket pair with 13,648 triangles, a measured cold ana
 
 ## Analysis and limits
 
-- FCL checks surfaces; Manifold3D / Mesh64 computes intersection volumes. Bounding boxes are used only to reject distant pairs.
+- Manifold3D / Mesh64 computes intersection volumes and reuses its existing solid hierarchy for capped surface-distance queries. Bounding boxes are used only to reject distant pairs.
 - Partial overlap, complete containment and disconnected intersection regions are supported. Invalid/open meshes, inconsistent calculations and borderline volumes are marked uncertain.
 - Internal connection epsilon: **0.00001 mm**. This is a numerical tolerance, not a manufacturing tolerance. Point and edge contact count as informational connections.
 - Tiny computed intersections, at or below max(10⁻¹² mm³, 10⁻¹⁰ of the smaller part's volume), are uncertain unless the fit margin has been verified independently. Automatic repair and reliable detection of all self-intersections are outside this prototype.
 - Import limit: **200 MiB per STL**, up to **100 objects** per session. Binary STL at this limit contains about 4.19 million triangles. Generated STL files of 131,072,084 and 205,845,284 bytes were imported and analyzed together through the API (about 28 s cold, under 0.01 s reused on the test host). Browser rendering time for those large files has not been measured. Large meshes require several GB of RAM; available memory and GPU resources still limit a practical session.
-- Geometry operations run in the background. There is no cancellation for a single long Boolean operation yet.
+- Geometry operations run in the background. The running analysis shows its actual stage and elapsed time and offers **Stop analysis**. Cancellation is cooperative; the UI remains busy until the worker actually stops. A cancelled run preserves the previous complete findings and reviews. Native Boolean evaluation receives a cancellation context. A 90 s pair budget and 45 s fit-verification budget request cancellation; these are not hard wall-clock guarantees for native calls; a stop is not a forced process termination. Computation limits produce **Needs review**, with an explanation in Checks and a corresponding uncertain result in the checklist/PDF.
 - **No project saving yet.** Refreshing starts a new session; restarting the server removes session data. Browser language preference is separate and persists locally. Session cleanup on tab closure is best effort.
 - Future work: through-gaps, wall thickness, additional checks and project persistence.
 
 ## Development and verification
 
-Python + FastAPI + Trimesh + Manifold3D + FCL; React + TypeScript + Three.js.
+Python + FastAPI + Trimesh + Manifold3D; React + TypeScript + Three.js.
 
 ```bash
 python3.12 -m venv .venv
@@ -213,4 +215,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, direct spooled imports, bounded STL streaming, lazy collision structures, unified analysis, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, direct spooled imports, bounded STL streaming, reused native surface queries, analysis cancellation/limits, unified analysis, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

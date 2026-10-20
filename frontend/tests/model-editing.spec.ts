@@ -91,7 +91,7 @@ test('Additional imports queue during analysis and upload, then leave isolation 
   await expect(page.locator('.import-queue')).toHaveText('Queued for import: 2');
   await expect(page.locator('.object-row')).toHaveCount(1); // Search still shows B before the import starts.
   holdAnalysis = false;
-  await expect(page.getByRole('status')).toHaveText('Processing…');
+  await expect(page.locator('.statusbar').getByRole('status')).toHaveText('Processing…');
   await expect(page.locator('.import-queue')).toHaveText('');
   await page.locator('input[type=file]').setInputFiles([stlBox('F.stl', 30)]);
   await expect(page.locator('.import-queue')).toHaveText('Queued for import: 1');

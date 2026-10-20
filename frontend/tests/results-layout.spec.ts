@@ -22,8 +22,12 @@ test('Checks collapse by category and object; checklist is a separate tab', asyn
   await expect(category).toContainText('1');
   await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .result-pair')).toHaveCount(1);
+  // Isolation reloads the overlay. Capture the baseline after that response is
+  // consumed and painted, rather than before an arbitrary 300 ms delay expires.
+  const overlay = page.waitForResponse(response => response.url().endsWith('/intersection') && response.ok());
   await page.getByRole('button', { name: 'Inspect pair: B.stl / C.stl', exact: true }).click();
-  await page.waitForTimeout(300);
+  await (await overlay).finished();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const before = await page.locator('canvas').screenshot();
   await category.click();
   await expect(category).toHaveAttribute('aria-expanded', 'false');

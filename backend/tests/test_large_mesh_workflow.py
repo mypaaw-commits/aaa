@@ -62,24 +62,13 @@ def test_streamed_stl_is_valid_and_export_chunks_are_bounded():
     assert np.allclose(np.linalg.norm(restored.face_normals, axis=1), 1)
 
 
-def test_collision_hierarchies_are_lazy_and_reused(monkeypatch):
-    original = geometry.fcl.BVHModel
-    calls = []
-
-    def build():
-        calls.append(True)
-        return original()
-
-    monkeypatch.setattr(geometry.fcl, 'BVHModel', build)
+def test_contact_queries_reuse_existing_manifold_hierarchies():
     a, overlap, contact, far = [geometry.prepare(box((x, 0, 0))) for x in (0, 1, 2, 20)]
-    assert calls == []
     assert geometry.analyze_pair(a, overlap)[0]['kind'] == 'INTERSECTION'
     assert geometry.analyze_pair(a, far)[0]['kind'] == 'DISCONNECTED'
-    assert calls == []
     assert geometry.analyze_pair(a, contact)[0]['kind'] == 'CONNECTED'
-    assert len(calls) == 2
     assert geometry.analyze_pair(a, contact)[0]['kind'] == 'CONNECTED'
-    assert len(calls) == 2
+    assert all('collision' not in shape.__dict__ for shape in (a, overlap, contact, far))
 
 
 @pytest.mark.parametrize('depth', [.0005, .0009, .000999, .001001, .0011, .002])

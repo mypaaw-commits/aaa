@@ -1,4 +1,4 @@
-# Unified analysis and dense STL in 0.22
+# Unified analysis and dense STL in 0.23
 
 The source geometry, result mesh and 0.001 mm fit margin are preserved. No decimation, bounding-box approximation of a positive intersection, or volume-only fit acceptance is used.
 
@@ -13,7 +13,7 @@ A ⊖ K ⊆ A − v                    for every vertex v of K
 C ∩ (A ⊖ K) ⊆ C ∩ ⋂(A − v)      for any subset of those vertices
 ```
 
-The new fast test selects six extremal vertices from the **same** kernel used by the original erosion. It intersects the common region with the corresponding translated copies of the source, stopping if the result becomes empty. Opposite directions are tested consecutively. Empty is sufficient to prove that the original core intersection is empty. A nonempty result proves nothing; it triggers the original full erosion. Engine errors in the certificate also fall back to that test.
+The new fast test selects six extremal vertices from the **same** kernel used by the original erosion. It intersects the common region with the corresponding translated copies of the source, stopping if the result becomes empty. Opposite directions are tested consecutively. Empty is sufficient to prove that the original core intersection is empty. A nonempty result proves nothing; smaller sources can fall back to the original full erosion. The dense-source guard introduced in 0.23 is described below. Engine errors in the certificate also fall back to that test.
 
 Both source directions must pass, as before. Containment and the existing volume/area rejection filters remain unchanged. This superset argument also applies to nonconvex sources and disconnected intersection regions. It does not rely on point sampling, a small overlap volume, or an estimated depth.
 
@@ -34,8 +34,7 @@ must be finite and positive. Face centers supply candidate positions; samples
 never decide the result without those exact containment/intersection operations.
 
 The algorithm first tries a few witnesses, then more kernel directions, then
-the remaining candidate witnesses. If neither certificate decides the result,
-the original full erosion remains the fallback. Both source directions are
+the remaining candidate witnesses. In 0.22, if neither certificate decided the result, the original full erosion remained the fallback. Version 0.23 changes that for dense sources, as explained below. Both source directions are
 still checked before a fit is accepted. A stable, geometry-based operand order
 avoids UUID-dependent triangulation choices in the Boolean engine.
 
@@ -50,7 +49,7 @@ produces connections, intersection/fit findings and the manual checklist togethe
 - Import preparation and analysis share one geometry worker, reusing native
   allocator arenas and avoiding simultaneous large geometry operations. Cancelled
   import requests wait for their worker before closing the upload stream.
-- The FCL hierarchy is built lazily only for a surface-distance query. Pairs
+- In 0.22, the FCL hierarchy was built lazily only for a surface-distance query. Pairs
   resolved by bounding boxes or a positive Boolean intersection do not build it.
 - Large validation scratch arrays are released after preparation. Small volume,
   bounds and validity measurements are retained.
@@ -95,7 +94,7 @@ Reproduce current cold/reused measurements from the repository root without star
 
 On Windows, use `.venv\Scripts\python.exe` instead. The script prints JSON with triangle counts, construction/import time, analysis time, computed/reused pair counts and classification. The historical baseline used `backend/geometry.py` from commit `0b7ae7f` on the same generated STL input.
 
-The full erosion remains necessary for some orientations and overlaps near the threshold, so those cases can still be slow. Reuse helps subsequent checks, while the certificates target the first analysis. Timing of large files is recorded separately below; the small historical example is not a promise of sub-second analysis for a 200 MiB part.
+The certificates remain inconclusive for some orientations and overlaps near the threshold. Version 0.23 exposes these as unresolved for dense sources instead of attempting the full erosion. Reuse helps subsequent checks, while the certificates target the first analysis. Timing of large files is recorded separately below; the small historical example is not a promise of sub-second analysis for a 200 MiB part.
 
 ### Large STL verification in 0.22
 
@@ -135,4 +134,77 @@ analysis times.
 
 ## Verification
 
-Tests check a dense STL socket without building eroded source meshes, compare the fast path with forced full erosion around the margin at rotated orientations, exercise a diagonal case that must fall back, retain the existing deep-needle and mixed-region regressions, and verify reuse, fresh checklist creation, unchanged overlay bytes, new/deleted parts, uncertain retries and margin invalidation. Additional tests cover actual upload length, direct spool reuse, shared worker identity, cancellation lifetime, bounded valid STL chunks, lazy/reused collision structures, exact dense-pair witnesses, one combined analysis action, EN/PL labels and recovery from a transient polling reset.
+Tests check a dense STL socket without building eroded source meshes, compare the fast path with forced full erosion around the margin at rotated orientations, exercise a diagonal case that must fall back, retain the existing deep-needle and mixed-region regressions, and verify reuse, fresh checklist creation, unchanged overlay bytes, new/deleted parts, uncertain retries and margin invalidation. Additional tests cover actual upload length, direct spool reuse, shared worker identity, cancellation lifetime, bounded valid STL chunks, reused native surface queries, exact dense-pair witnesses, one combined analysis action, EN/PL labels and recovery from a transient polling reset.
+
+
+## Dense-source guard and cancellation in 0.23
+
+A user reported a first analysis running for more than ten minutes on two
+roughly 100 MB STL files on a 16 GB machine. The original files were not provided,
+so their particular bottleneck has **not** been reproduced or confirmed fixed.
+The 0.22 large benchmark above concerned a Boolean fit; it did not establish
+performance for arbitrary intersecting figure meshes.
+
+The old FCL surface-distance branch constructed a second hierarchy for each
+source, copying all faces and vertices. Its Cython distance call runs while
+holding the Python GIL (the pinned fcl.pyx has no `with nogil` around
+`defs.distance`), so a slow query can prevent API polling and cancellation.
+Version 0.23 uses Manifold.min_gap with a search cap of twice the unchanged
+connection epsilon. The existing solid hierarchies are reused. Values above
+epsilon are disconnected; edge and point contact remain connected. Regression
+tests include rotated parts with overlapping bounds and gaps on both sides of
+0.00001 mm. This distance call is itself native and not a hard-cancellable task.
+
+The expensive whole-source Minkowski fallback is no longer attempted for a
+source with at least 50,000 faces. The same exact certificates run first, with an
+additional candidate at the common region's bounding-box center. Each accepted
+witness still requires exact containment and positive-volume overlap. If no
+certificate decides a dense pair, its result is UNCERTAIN with
+reason=COMPUTATION_LIMIT. This intentionally reduces automatic coverage in hard
+cases rather than guessing a fit or reporting no intersections. Smaller sources
+retain the full erosion fallback. The original .001 mm margin and full input
+resolution are unchanged.
+
+A 90 s per-pair timer and a 45 s fit-verification timer set a native cancellation
+context and are checked between operations. They are **cooperative budgets**, not
+hard deadlines: native Minkowski and other calls may take time to return.
+Native Boolean results are forced under Manifold's ExecutionContext. A cancelled
+or budget-exhausted solid is never treated as an empty intersection. A user stop
+cancels the run without publishing partial findings or a partial checklist; the
+session stays busy until the worker finishes. Closing an abandoned tab also
+requests cancellation. A budget limit, in contrast, finishes the pair as Needs
+review and continues the remaining pairs. Limits and uncertain findings are not
+cached as successful results. The UI displays the actual stage, elapsed time,
+Stop analysis, a manual-verification count and an explanation next to limited
+pairs. The checklist and PDF retain the uncertain result.
+
+Additional local Linux measurements, with the same pinned dependencies:
+
+- Two overlapping copies of the 131,072,084-byte key STL, each with 2,621,440
+  triangles: 0.22 analysis **1.170 s**, 0.23 **1.092 s**; both returned INTERSECTION
+  with volume 42.4110754189054 mm³. 0.23 peak process RSS was about 2.62 GiB.
+  Preparation took 19.25 s and is excluded. These files contain two disconnected
+  sphere copies each; the second part was translated by 1 mm.
+- Two touching copies of the same 125 MiB key fixture (4 mm translation):
+  0.22 **18.678 s**, 0.23 **0.935 s**; both returned CONNECTED with zero overlap
+  volume. Peak process RSS decreased from **4,414.73 MiB to 2,686.39 MiB**.
+  The measured query times exclude preparation (16.88 s and 20.49 s respectively).
+  This measures the surface-distance branch, not a speedup of the positive-volume
+  Boolean operation or a promise about the user's intersecting models.
+- The existing 125/196 MiB Boolean socket/key fixture still returned
+  WITHIN_TOLERANCE in 0.23: **33.58 s** analysis and about **6.40 GiB** peak process
+  RSS. Import took 22.82 s and is excluded. Runs were not otherwise isolated from
+  workspace activity, so small timing differences are not speedup claims.
+- An additional near-margin rotated box pair with 196,608 triangles per source
+  did not finish in the externally enforced 45 s baseline run. Version 0.23
+  returned **UNCERTAIN in 37.90 s**, without building whole-source cores. This is
+  evidence of the coverage/performance tradeoff, **not** an equivalent complete
+  analysis or evidence that the user's files are fixed.
+
+Tests preserve the original near-margin classifications on small sources,
+exercise the dense guard and expired native work, check that uncertainty reaches
+both checklist and PDF, and verify actual API cancellation, busy-state lifetime,
+preservation of prior reviews and abandoned-session cancellation. Browser tests
+cover stage/time display, live language changes, cancellation and explicit
+manual-verification results. Large browser rendering and Windows performance
+remain unmeasured.

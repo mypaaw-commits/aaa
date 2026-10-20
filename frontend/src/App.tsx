@@ -79,6 +79,7 @@ export default function App() {
           setTasks(result.tasks);
           if (result.job.state === 'done') setIntersections(true);
           if (result.job.state === 'error') setError(result.job.error ?? 'Analiza nie powiodła się.');
+          else if (result.job.state === 'cancelled') setNotice({ key: 'analysisCancelled' });
           else setNotice({ key: 'analysisFinished', values: { count: result.job.total, seconds: result.job.seconds.toFixed(2) } });
         }
       } catch (err) {
@@ -142,6 +143,12 @@ export default function App() {
       setPanelTab('checks');
     } catch (err) { setError((err as Error).message); }
     finally { setLoading(false); }
+  }
+  async function stopAnalysis() {
+    try {
+      await api(`/sessions/${session}/analysis/cancel`, { method: 'POST' });
+      setJob(previous => previous?.state === 'running' ? { ...previous, stage: 'stopping' } : previous);
+    } catch (err) { setError((err as Error).message); }
   }
   function select(id: string | null, multi: boolean) {
     setActivePair(null);
@@ -254,7 +261,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); queueImport(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) queueImport(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.22</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.23</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <span className="import-queue" aria-live="polite">{queuedFiles.length > 0 ? t('importQueued', { count: queuedFiles.length }) : ''}</span>
@@ -283,7 +290,10 @@ export default function App() {
         <section className="analysis-panel">
           <div className="analysis-controls">
             <button className="button analyze-button" disabled={busy || !session || parts.length < 2} onClick={() => void analyze()}>{job?.state === 'running' ? <LoaderCircle size={16} className="spin" /> : <ScanLine size={16} />}{t(job?.state === 'running' ? 'analyzing' : 'analyze')}</button>
+            {job?.state === 'running' && <button className="button" disabled={job.stage === 'stopping'} onClick={() => void stopAnalysis()}><X size={15} />{t('stopAnalysis')}</button>}
           </div>
+          {job?.state === 'running' && <p className="analysis-stage" role="status">{t(`stage_${job.stage ?? 'bounds'}`)} · {job.seconds.toFixed(0)} s</p>}
+          {job?.state === 'done' && relations.some(row => row.kind === 'UNCERTAIN') && <p className="analysis-stage analysis-warning">{t(relations.filter(row => row.kind === 'UNCERTAIN').length === 1 ? 'uncertainSummaryOne' : 'uncertainSummary', { count: relations.filter(row => row.kind === 'UNCERTAIN').length })}</p>}
           <div className="analysis-result">
             <label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label>
             <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : ''}{job?.state === 'done' && fitCount > 0 && ` · ${t('withinToleranceCount', { count: fitCount })}`}</span>

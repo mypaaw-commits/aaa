@@ -1,14 +1,15 @@
 """Read-only mesh analysis. All coordinates and distances are in millimetres."""
 from dataclasses import dataclass, field
-from functools import cached_property, lru_cache
+from functools import lru_cache
 import numpy as np
 import trimesh
-import fcl
 import manifold3d
+from backend.analysis_control import AnalysisCancelled, AnalysisControl, AnalysisLimit, current_control, evaluated, stage
 
 CONNECTION_EPS = 1e-5  # numerical tolerance, NOT a manufacturing tolerance
 FIT_TOLERANCE = .001  # mm: user-selected allowance for STL/Boolean surface noise
 DENSE_PROBE_MIN_FACES = 50000
+MAX_EROSION_FACES = 50000
 
 
 @dataclass
@@ -17,17 +18,6 @@ class Shape:
     solid: bool
     manifold: object | None
     cores: dict = field(default_factory=dict)
-
-    @cached_property
-    def collision(self):
-        # Many dense pairs finish in the Boolean engine or the bounding-box rejection.
-        # Build the separate FCL hierarchy only for a surface-distance query.
-        model = fcl.BVHModel()
-        model.beginModel(len(self.mesh.vertices), len(self.mesh.faces))
-        model.addSubModel(np.asarray(self.mesh.vertices, dtype=np.float64), np.asarray(self.mesh.faces, dtype=np.int32))
-        model.endModel()
-        return fcl.CollisionObject(model)
-
 
 def prepare(mesh: trimesh.Trimesh) -> Shape:
     # Merge STL's repeated vertices on a working copy; never move source vertices.
@@ -85,9 +75,7 @@ def certifies_surface_band(source: Shape, common, tolerance: float, extended=Fal
             vertices = tolerance_kernel(tolerance).to_mesh64().vert_properties[:, :3]
             probes = tuple(dict.fromkeys((*probes, *(tuple(float(v) for v in point) for point in vertices))))
         for vertex in probes:
-            remaining = remaining ^ source.manifold.translate(tuple(-value for value in vertex))
-            if remaining.status() != manifold3d.Error.NoError:
-                return False  # The original exact test remains the fallback.
+            remaining = evaluated(remaining ^ source.manifold.translate(tuple(-value for value in vertex)))
             if remaining.is_empty():
                 return True
     except (ValueError, RuntimeError):
@@ -108,17 +96,20 @@ def certifies_core_overlap(source: Shape, other: Shape, common: trimesh.Trimesh,
     # faces (e.g. the corners of a thin box/box overlap). Samples only propose
     # candidates: every accepted witness still needs two exact solid operations.
     face_ids = np.unique(np.linspace(0, len(common.faces) - 1, min(32, len(common.faces)), dtype=np.intp))
-    candidates = np.asarray(common.vertices)[np.asarray(common.faces)[face_ids]].mean(axis=1)
+    centers = np.asarray(common.vertices)[np.asarray(common.faces)[face_ids]].mean(axis=1)
+    # An interior candidate often proves a real overlap before trying boundary
+    # samples, which can lie exactly on the source being tested.
+    candidates = np.vstack((common.bounds.mean(axis=0), centers))
     witness = kernel.scale((.02, .02, .02))
     outer = kernel.scale((1.02, 1.02, 1.02))
     try:
         for candidate in candidates[start:stop]:
             point = tuple(float(v) for v in candidate)
-            outside = outer.translate(point) - source.manifold
-            if outside.status() != manifold3d.Error.NoError or not outside.is_empty():
+            outside = evaluated(outer.translate(point) - source.manifold)
+            if not outside.is_empty():
                 continue
-            inside = witness.translate(point) ^ other.manifold
-            if inside.status() == manifold3d.Error.NoError and not inside.is_empty():
+            inside = evaluated(witness.translate(point) ^ other.manifold)
+            if not inside.is_empty():
                 volume = abs(float(inside.volume()))
                 if np.isfinite(volume) and volume > 0:
                     return True
@@ -145,19 +136,28 @@ def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: flo
                     continue
                 if certifies_core_overlap(source, other, common, tolerance, start=8):
                     return False
+                # Whole-source Minkowski erosion of millions of triangles can
+                # consume minutes and many GB. An unresolved certificate is not
+                # evidence of a fit or of an intersection: keep it for review.
+                if len(source.mesh.faces) >= MAX_EROSION_FACES:
+                    raise AnalysisLimit()
             core = source.manifold.minkowski_difference(tolerance_kernel(tolerance))
             if core.status() != manifold3d.Error.NoError:
                 raise ValueError('Nie można zweryfikować marginesu dopasowania.')
             source.cores[tolerance] = core
-        inside = source.cores[tolerance] ^ other.manifold
-        if inside.status() != manifold3d.Error.NoError:
-            raise ValueError('Nie można zweryfikować marginesu dopasowania.')
+        inside = evaluated(source.cores[tolerance] ^ other.manifold)
         if not inside.is_empty():
             return False
     return True
 
 
 def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
+    control = current_control.get() or AnalysisControl()
+    with control.pair():
+        return _analyze_pair(a, b, tolerance)
+
+
+def _analyze_pair(a: Shape, b: Shape, tolerance: float):
     """Returns metadata and optional exact Boolean intersection mesh."""
     if not np.isfinite(tolerance) or tolerance < 0:
         raise ValueError('Nieprawidłowy margines dopasowania.')
@@ -167,6 +167,7 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
         a, b = b, a
     base = {'kind': 'UNCERTAIN', 'volume': None, 'message': '', 'coincident': False,
             'fit_tolerance': tolerance}
+    stage('bounds')
     lower = bounds_distance(a, b)
     if lower > CONNECTION_EPS:
         return {**base, 'kind': 'DISCONNECTED', 'message': 'Elementy nie są ze sobą powiązane.'}, None
@@ -174,9 +175,8 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
         return {**base, 'message': 'Siatka otwarta, niespójna lub z odwróconą orientacją. Nie można pewnie ocenić bryły.'}, None
     try:
         # Mesh64 keeps double precision; the standard trimesh Boolean adapter uses float32.
-        solid_common = a.manifold ^ b.manifold
-        if solid_common.status() != manifold3d.Error.NoError:
-            raise ValueError('Silnik nie zwrócił poprawnego wyniku przecięcia.')
+        stage('intersection')
+        solid_common = evaluated(a.manifold ^ b.manifold)
         volume = abs(float(solid_common.volume()))
         if not np.isfinite(volume):
             raise ValueError('Nieprawidłowa objętość przecięcia.')
@@ -187,14 +187,17 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
             # Bounds are only a cheap candidate filter. Identity requires both
             # Boolean differences to be empty, regardless of triangulation.
             if np.allclose(a.mesh.bounds, b.mesh.bounds, atol=CONNECTION_EPS, rtol=0):
-                difference_a = a.manifold - b.manifold
-                difference_b = b.manifold - a.manifold
-                coincident = (difference_a.status() == manifold3d.Error.NoError
-                              and difference_b.status() == manifold3d.Error.NoError
-                              and difference_a.is_empty() and difference_b.is_empty())
-            if not coincident and tolerance > 0 and within_tolerance(a, b, common, tolerance, solid_common):
-                return {**base, 'kind': 'WITHIN_TOLERANCE', 'volume': volume,
-                        'message': 'Dopasowanie w przyjętym marginesie. Wynik nie jest liczony jako intersekcja.'}, common
+                stage('coincidence')
+                difference_a = evaluated(a.manifold - b.manifold)
+                if difference_a.is_empty():
+                    coincident = evaluated(b.manifold - a.manifold).is_empty()
+            if not coincident and tolerance > 0:
+                stage('fit')
+                with current_control.get().fit():
+                    fits = within_tolerance(a, b, common, tolerance, solid_common)
+                if fits:
+                    return {**base, 'kind': 'WITHIN_TOLERANCE', 'volume': volume,
+                            'message': 'Dopasowanie w przyjętym marginesie. Wynik nie jest liczony jako intersekcja.'}, common
             # Borderline volumes remain uncertain unless the fit was verified.
             scale = max(float(min(a.mesh.volume, b.mesh.volume)), 1e-12)
             if not coincident and volume <= max(1e-12, scale * 1e-10):
@@ -204,12 +207,22 @@ def analyze_pair(a: Shape, b: Shape, tolerance: float = FIT_TOLERANCE):
                     'message': 'Elementy przenikają się. Włącz podświetlenie, aby zobaczyć wspólny obszar.'}, common
         # Surface proximity is only an internal test for a direct connection.
         # Separated parts are never proposed as related merely because they are near.
-        result = fcl.DistanceResult()
-        distance = float(fcl.distance(a.collision, b.collision, fcl.DistanceRequest(), result))
+        stage('distance')
+        # Reuse the existing solid hierarchy instead of building another full
+        # FCL hierarchy per part. Its Python binding also holds the GIL while
+        # running the native distance query, preventing polling/cancellation.
+        # A capped exact distance suffices: anything > epsilon is disconnected.
+        distance = float(a.manifold.min_gap(b.manifold, CONNECTION_EPS * 2))
+        current_control.get().check()
         if not np.isfinite(distance) or distance < -CONNECTION_EPS:
             return {**base, 'message': 'Wyniki analizy są sprzeczne. Sprawdź tę parę ręcznie.'}, None
         connected = distance <= CONNECTION_EPS
         return {**base, 'kind': 'CONNECTED' if connected else 'DISCONNECTED', 'volume': 0.0,
                 'message': 'Elementy są ze sobą powiązane. Nie wykryto intersekcji.' if connected else 'Elementy nie są ze sobą powiązane.'}, None
+    except AnalysisCancelled:
+        raise
+    except AnalysisLimit:
+        return {**base, 'reason': 'COMPUTATION_LIMIT',
+                'message': 'Nie udało się potwierdzić wyniku w limicie obliczeń. Sprawdź tę parę ręcznie.'}, None
     except Exception as exc:
         return {**base, 'message': f'Analiza nie powiodła się ({type(exc).__name__}). Wymagana ręczna weryfikacja.'}, None
