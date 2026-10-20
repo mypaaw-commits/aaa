@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.18
+# ModelCheck 3D — prototype 0.19
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -15,7 +15,7 @@ Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24
 3. Run `start.cmd` and use the new browser tab it opens.
 4. Leave the server window open. Ctrl+C stops it.
 
-The application header should show **0.18**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+The application header should show **0.19**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
 
 After installation, the application works offline, including fonts. It listens only on the local computer.
 
@@ -55,7 +55,7 @@ Selection never changes to a second color for a pair or a coincident object. The
 
 **Find connections** computes informational links between directly connected parts. Connections lists every imported object as a collapsed group, including objects with no links. Expand an object to see only the parts linked to it; opening another group closes the previous one. Expanding or closing a group leaves the 3D selection unchanged. Connected, Within tolerance, Intersection, Needs review and Coincident have different icons and visible labels. Click a linked part to select and highlight both objects without moving the camera. **Inspect** is the single action on each pair: it selects, isolates and frames both objects. The pair name only selects, without moving the camera. Back to full model restores the view.
 
-![Selected pair with matching object colors and separate connection actions](docs/selected-pair.png)
+![Selected pair with matching object colors and a single Inspect action](docs/selected-pair.png)
 
 **Check intersections** creates a review task for every imported object and opens the Checks tab. Results and reviews now have separate tabs:
 
@@ -136,10 +136,32 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 | Isolate selection | Show and frame selected objects |
 | Show all / Back to full model | Restore and frame all objects |
 | Frame all visible / double click in 3D | Frame visible objects |
-| Floor | Toggle the grid and axes |
+| Floor | Toggle the subtle floor grid |
 | Transparency | Toggle object transparency independently of results |
 
-Both projections support framing, picking, orbit, pan, wheel zoom and resizing. Front, Top and 3D change camera direction within the chosen projection.
+The camera strip above the scene has **Front, Back, Left, Right, Top, Bottom and 3D** buttons. These preserve the view center, zoom and selected projection. The active direction is highlighted; orbiting freely clears that highlight. The viewport uses a light neutral background, a restrained floor grid and no colored world axes.
+
+| Numpad shortcut | Action |
+| --- | --- |
+| 1 / Ctrl + 1 | Front / Back |
+| 3 / Ctrl + 3 | Right / Left |
+| 7 / Ctrl + 7 | Top / Bottom |
+| 5 | Switch Perspective / Orthographic |
+| 2 / 4 / 6 / 8 | Orbit in 15° steps |
+| Decimal | Frame selected objects, or all visible objects when nothing is selected |
+
+These use the physical numpad and work with Num Lock on or off. Camera shortcuts take priority over numpad navigation in the object list; regular arrows, Home and End still navigate the list. Shortcuts are inactive while editing a field or using a select/menu. Both projections support all six directions, framing, picking, orbit, pan, wheel zoom and resizing.
+
+**Lighting** is available beside the camera buttons:
+
+- **Soft** (default): diffuse, balanced matte shading for inspecting a model from any side.
+- **Studio**: stronger key light and a fill light to show volume.
+- **Surface detail**: side lighting that makes changes in surface normals easier to see.
+- **Flat**: even illumination with no directional shading.
+
+Lights follow camera orientation. These presets control surface shading; they do not add cast shadows or extra rendering passes. Switching lighting preserves framing, selection and transparency. Red intersection, teal tolerance and purple coincidence overlays keep their colors independently of lighting.
+
+![Soft lighting and the camera toolbar](docs/viewport-soft.png)
 
 Ordinary selection and clicking a pair name do not move the camera. Pair framing and isolation explicitly change the view. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
@@ -174,4 +196,4 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, camera controls, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, lighting presets, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.

@@ -12,7 +12,8 @@ async function viewPixels(page: import('@playwright/test').Page) {
     let red = 0, teal = 0;
     for (let i = 0; i < pixels.length; i += 4) {
       if (pixels[i] > 160 && pixels[i] > pixels[i + 1] * 1.5 && pixels[i] > pixels[i + 2] * 1.5) red++;
-      if (pixels[i + 1] > 130 && pixels[i + 1] > pixels[i] * 1.5 && pixels[i + 2] > 90) teal++;
+      // Teal has more green than blue; illuminated blue selections must not count as fit overlays.
+      if (pixels[i + 1] > 130 && pixels[i + 1] > pixels[i] * 1.5 && pixels[i + 2] > 90 && pixels[i + 1] > pixels[i + 2]) teal++;
     }
     bitmap.close(); return { red, teal };
   }, [...png]);

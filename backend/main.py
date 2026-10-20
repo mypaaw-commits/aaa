@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 from backend.reports import checklist_pdf
 
-app = FastAPI(title='ModelCheck 3D', version='0.18.0')
+app = FastAPI(title='ModelCheck 3D', version='0.19.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()

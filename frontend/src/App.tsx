@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Box, Grid2X2, Layers2, Languages, Link2, ScanLine, Upload, Eye, LoaderCircle, Maximize, Search, SquareDashedMousePointer, BoxSelect, TriangleAlert, X } from 'lucide-react';
 import { Viewer } from './Viewer';
+import { CameraControls } from './CameraControls';
 import { ObjectMenu } from './ObjectMenu';
 import { ObjectList } from './ObjectList';
 import { ResultsPanel } from './ResultsPanel';
@@ -8,7 +9,7 @@ import type { ResultsTab } from './ResultsPanel';
 import { localizeError, useI18n } from './i18n';
 import type { TextKey, Values } from './i18n';
 import type { ObjectMenuState } from './ObjectMenu';
-import type { Projection, ViewerHandle } from './Viewer';
+import type { CameraView, Lighting, Projection, ViewerHandle } from './Viewer';
 import { api, partColors } from './types';
 import type { AnalysisResult, CheckKind, CheckTask, Job, Part, Relation } from './types';
 import './style.css';
@@ -36,6 +37,8 @@ export default function App() {
   const [transparent, setTransparent] = useState(false);
   const [floor, setFloor] = useState(true);
   const [projection, setProjection] = useState<Projection>('perspective');
+  const [cameraView, setCameraView] = useState<CameraView | null>('isometric');
+  const [lighting, setLighting] = useState<Lighting>('soft');
   const [dragging, setDragging] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [objectMenu, setObjectMenu] = useState<ObjectMenuState | null>(null);
@@ -233,7 +236,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.18</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.19</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
@@ -273,16 +276,19 @@ export default function App() {
         <div className="viewport">
           <div className="viewport-toolbar">
             <div className="scene-label"><Box size={16} /><strong>{t(isolated ? 'isolated' : 'fullModel')}</strong><span>{t('visible', { count: parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length, total: parts.length })}</span></div>
-            <div className="view-controls"><select aria-label={t('projection')} value={projection} onChange={event => setProjection(event.target.value as Projection)}><option value="perspective">{t('perspective')}</option><option value="orthographic">{t('orthographic')}</option></select><button className="transparency-toggle" aria-label={t('transparency')} aria-pressed={transparent} title={t('transparencyTip')} disabled={!parts.length} onClick={() => setTransparent(value => !value)}><Layers2 size={15} />{t('transparency')}</button><button className="floor-toggle" aria-label={t('floor')} aria-pressed={floor} title={t('floorTip')} onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />{t('floor')}</button><button title={t('fit')} onClick={() => viewer.current?.fit()}><Maximize size={16} /></button><div className="axis-controls"><button title={t('front')} onClick={() => viewer.current?.view('y')}>{t('front')}</button><button title={t('top')} onClick={() => viewer.current?.view('z')}>{t('top')}</button><button title={t('view3d')} onClick={() => viewer.current?.view('perspective')}>3D</button></div></div>
+            <div className="view-controls"><select aria-label={t('projection')} title={t('projection') + ' · Numpad 5'} value={projection} onChange={event => setProjection(event.target.value as Projection)}><option value="perspective">{t('perspective')}</option><option value="orthographic">{t('orthographic')}</option></select><button className="transparency-toggle" aria-label={t('transparency')} aria-pressed={transparent} title={t('transparencyTip')} disabled={!parts.length} onClick={() => setTransparent(value => !value)}><Layers2 size={15} />{t('transparency')}</button><button className="floor-toggle" aria-label={t('floor')} aria-pressed={floor} title={t('floorTip')} onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />{t('floor')}</button><button title={t('fit')} onClick={() => viewer.current?.fit()}><Maximize size={16} /></button></div>
           </div>
-          <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} onSelect={select} onError={setError} onLoaded={setLoaded} />
-          {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
-          {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />{t('loadingGeometry', { count: loaded, total: parts.length })}</div>}
-          {isolated && <button className="exit-isolation button" onClick={showAll}><ArrowLeft size={16} />{t('back')}</button>}
-          <div className="viewport-legend" aria-label={t('colorLegend')}>
-            {parts.length > 0 && <div className="selection-color-legend"><span><i style={{ background: partColors.idle }} />{t('unselected')}</span><span><i style={{ background: partColors.selected }} />{t('selectionLegend')}</span></div>}
+          <CameraControls viewer={viewer} view={cameraView} selected={selected} lighting={lighting} onLighting={setLighting} onToggleProjection={() => setProjection(value => value === 'perspective' ? 'orthographic' : 'perspective')} />
+          <div className="viewport-stage">
+            <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} lighting={lighting} onViewChange={setCameraView} onSelect={select} onError={setError} onLoaded={setLoaded} />
+            {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
+            {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />{t('loadingGeometry', { count: loaded, total: parts.length })}</div>}
+            {isolated && <button className="exit-isolation button" onClick={showAll}><ArrowLeft size={16} />{t('back')}</button>}
+            <div className="viewport-legend" aria-label={t('colorLegend')}>
+              {parts.length > 0 && <div className="selection-color-legend"><span><i style={{ background: partColors.idle }} />{t('unselected')}</span><span><i style={{ background: partColors.selected }} />{t('selectionLegend')}</span></div>}
 
-            {intersections && intersectionsReady && <div className="view-legend">{visibleIntersections.some(row => row.kind === 'WITHIN_TOLERANCE') && <span className="fit-legend"><i style={{ background: partColors.fit }} />{t('withinTolerance')}</span>}{visibleIntersections.some(row => row.kind === 'INTERSECTION' && !row.coincident) && <span><i style={{ background: partColors.intersection }} />{t('intersectionLegend')}</span>}{visibleIntersections.some(row => row.coincident) && <span><i style={{ background: partColors.coincident }} />{t('coincident')}</span>}</div>}
+              {intersections && intersectionsReady && <div className="view-legend">{visibleIntersections.some(row => row.kind === 'WITHIN_TOLERANCE') && <span className="fit-legend"><i style={{ background: partColors.fit }} />{t('withinTolerance')}</span>}{visibleIntersections.some(row => row.kind === 'INTERSECTION' && !row.coincident) && <span><i style={{ background: partColors.intersection }} />{t('intersectionLegend')}</span>}{visibleIntersections.some(row => row.coincident) && <span><i style={{ background: partColors.coincident }} />{t('coincident')}</span>}</div>}
+            </div>
           </div>
         </div>
       </section>

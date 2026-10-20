@@ -9,11 +9,18 @@ import type { Part, Relation } from './types';
 import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
 
-export type ViewerHandle = { fit: (ids?: string[]) => void; view: (axis: 'x' | 'y' | 'z' | 'perspective') => void };
+export type CameraView = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'isometric';
+export type Lighting = 'soft' | 'studio' | 'surface' | 'flat';
+export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; axes: THREE.AxesHelper; fit: (ids?: string[]) => void; setProjection: (mode: Projection) => void; invalidate: () => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; lighting: Lighting; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setLighting: (mode: Lighting) => void; setProjection: (mode: Projection) => void; invalidate: () => void };
+// Z is up in imported STL coordinates. A small pole offset keeps OrbitControls stable.
+const viewDirections: Record<CameraView, [number, number, number]> = {
+  front: [0, -1, 0], back: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0],
+  top: [0, -.000001, 1], bottom: [0, -.000001, -1], isometric: [1, -1.5, 1],
+};
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
   object.traverse(child => {
@@ -33,22 +40,17 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   const fitNext = useRef(true);
   useImperativeHandle(ref, () => ({
     fit: ids => engine.current?.fit(ids),
-    view: axis => {
-      const e = engine.current; if (!e) return;
-      const distance = e.camera.position.distanceTo(e.controls.target);
-      const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0.001) : axis === 'y' ? new THREE.Vector3(0, -1, .001) : axis === 'z' ? new THREE.Vector3(0, -.001, 1) : new THREE.Vector3(1, -1.5, 1);
-      e.camera.position.copy(e.controls.target).addScaledVector(dir.normalize(), distance);
-      e.controls.update();
-    },
+    view: view => engine.current?.setView(view),
+    orbit: (horizontal, vertical) => engine.current?.orbit(horizontal, vertical),
   }), []);
 
   useEffect(() => {
     const container = host.current!;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#484848');
+    scene.background = new THREE.Color('#e2e8ed');
     let camera: Camera = new THREE.PerspectiveCamera(40, 1, .01, 100000);
     let aspect = 1;
-    camera.up.set(0, 0, 1); camera.position.set(35, -55, 35);
+    camera.up.set(0, 0, 1); camera.position.set(35, -52.5, 35);
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
     catch { latest.current.onError('Nie można uruchomić WebGL. Włącz akcelerację sprzętową w przeglądarce.'); return; }
@@ -60,18 +62,42 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     let dirty = true;
     const invalidate = () => { dirty = true; };
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.addEventListener('change', invalidate);
+    let namedDirection: THREE.Vector3 | null = new THREE.Vector3(...viewDirections.isometric).normalize();
+    const changed = () => {
+      invalidate();
+      if (namedDirection && camera.position.clone().sub(controls.target).normalize().dot(namedDirection) < .999999) {
+        namedDirection = null; latest.current.onViewChange(null);
+      }
+    };
+    controls.addEventListener('change', changed);
     controls.enableDamping = true; controls.dampingFactor = .12;
     controls.mouseButtons.LEFT = null;
     controls.mouseButtons.RIGHT = null;
     controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
     controls.screenSpacePanning = true;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x656565, 1.7));
-    const key = new THREE.DirectionalLight(0xffffff, 2); key.position.set(20, -30, 60); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, .6); fill.position.set(-30, 10, 10); scene.add(fill);
-    const grid = new THREE.GridHelper(80, 40, 0x727272, 0x565656);
+    // Diffuse lights follow the viewing direction; every side stays readable. No costly shadow passes.
+    const lightRig = new THREE.Group(); scene.add(lightRig);
+    const ambient = new THREE.AmbientLight(0xffffff, .6); lightRig.add(ambient);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x8d98a3, 1); lightRig.add(hemi);
+    const lightPositions = [[-3, 4, 5], [4, 1, 3], [0, -4, 2], [-3, 0, -3]];
+    const lights = lightPositions.map(position => {
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(position[0], position[1], position[2]);
+      lightRig.add(light, light.target); return light;
+    });
+    const setLighting = (mode: Lighting) => {
+      const presets: Record<Lighting, { ambient: number; hemi: number; lights: number[] }> = {
+        soft: { ambient: .7, hemi: 1.3, lights: [1.1, .8, .5, .4] },
+        studio: { ambient: .25, hemi: .8, lights: [3, .65, .15, .65] },
+        surface: { ambient: .15, hemi: .6, lights: [.2, 3.6, .1, .15] },
+        flat: { ambient: 3, hemi: 0, lights: [0, 0, 0, 0] },
+      };
+      const preset = presets[mode]; ambient.intensity = preset.ambient; hemi.intensity = preset.hemi;
+      lights.forEach((light, index) => { light.intensity = preset.lights[index]; }); invalidate();
+    };
+    const grid = new THREE.GridHelper(80, 24, 0xa8b5bf, 0xb8c4cd);
+    grid.material.transparent = true; grid.material.opacity = .4; grid.material.depthWrite = false;
     grid.rotateX(Math.PI / 2); scene.add(grid);
-    const axes = new THREE.AxesHelper(12); scene.add(axes);
     const meshes: Engine['meshes'] = new Map();
     const overlays = new THREE.Group(); scene.add(overlays);
     const fit = (ids?: string[]) => {
@@ -96,7 +122,26 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       camera.updateProjectionMatrix(); controls.update(); invalidate();
       grid.position.set(center.x, center.y, box.min.z - max * .001);
       grid.scale.setScalar(Math.max(max * 2 / 80, .001));
-      axes.position.copy(grid.position); axes.scale.setScalar(max / 60);
+    };
+    const settleControls = () => {
+      // Flush pending mouse inertia before assigning an exact view or a keyboard orbit step.
+      const damping = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = damping;
+    };
+    const setView = (view: CameraView) => {
+      settleControls();
+      const distance = camera.position.distanceTo(controls.target);
+      const direction = new THREE.Vector3(...viewDirections[view]).normalize();
+      camera.position.copy(controls.target).addScaledVector(direction, distance);
+      controls.update(); namedDirection = direction; latest.current.onViewChange(view); invalidate();
+    };
+    const orbit: ViewerHandle['orbit'] = (horizontal, vertical) => {
+      settleControls();
+      const toYUp = new THREE.Quaternion().setFromUnitVectors(camera.up, new THREE.Vector3(0, 1, 0));
+      const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target).applyQuaternion(toYUp));
+      spherical.theta += THREE.MathUtils.degToRad(horizontal);
+      spherical.phi += THREE.MathUtils.degToRad(vertical); spherical.makeSafe();
+      camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical).applyQuaternion(toYUp.invert()));
+      controls.update(); invalidate();
     };
     const setProjection = (mode: Projection) => {
       if ((camera instanceof THREE.OrthographicCamera) === (mode === 'orthographic')) return;
@@ -120,7 +165,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       if (engine.current) engine.current.camera = camera;
       controls.update(); invalidate();
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, axes, fit, setProjection, invalidate };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, setView, orbit, setLighting, setProjection, invalidate };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height); aspect = Math.max(width, 1) / Math.max(height, 1);
@@ -132,7 +177,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const animate = () => {
       frame = requestAnimationFrame(animate); controls.update();
       // Render only on changes; large STL scenes should not keep an idle GPU busy.
-      if (dirty) { renderer.render(scene, camera); dirty = false; }
+      if (dirty) { lightRig.quaternion.copy(camera.quaternion); renderer.render(scene, camera); dirty = false; }
     }; animate();
     let start: [number, number] = [0, 0];
     const down = (event: PointerEvent) => {
@@ -153,7 +198,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     renderer.domElement.addEventListener('contextmenu', prevent);
     renderer.domElement.addEventListener('dblclick', () => fit());
     return () => {
-      cancelAnimationFrame(frame); resize.disconnect(); controls.removeEventListener('change', invalidate); controls.dispose();
+      cancelAnimationFrame(frame); resize.disconnect(); controls.removeEventListener('change', changed); controls.dispose();
       renderer.domElement.removeEventListener('pointerdown', down, true);
       renderer.domElement.removeEventListener('pointerup', up);
       renderer.domElement.removeEventListener('contextmenu', prevent);
@@ -162,11 +207,11 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   }, []);
 
   useEffect(() => { engine.current?.setProjection(props.projection); }, [props.projection]);
+  useEffect(() => { engine.current?.setLighting(props.lighting); }, [props.lighting]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
     e.grid.visible = props.floor;
-    e.axes.visible = props.floor;
     e.invalidate();
   }, [props.floor]);
 
