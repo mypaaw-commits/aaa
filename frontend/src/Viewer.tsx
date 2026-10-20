@@ -10,12 +10,11 @@ import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
 
 export type CameraView = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'isometric';
-export type Lighting = 'soft' | 'studio' | 'surface' | 'flat';
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; lighting: Lighting; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setLighting: (mode: Lighting) => void; setProjection: (mode: Projection) => void; invalidate: () => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setProjection: (mode: Projection) => void; invalidate: () => void };
 // Z is up in imported STL coordinates. A small pole offset keeps OrbitControls stable.
 const viewDirections: Record<CameraView, [number, number, number]> = {
   front: [0, -1, 0], back: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0],
@@ -77,24 +76,14 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     controls.screenSpacePanning = true;
     // Diffuse lights follow the viewing direction; every side stays readable. No costly shadow passes.
     const lightRig = new THREE.Group(); scene.add(lightRig);
-    const ambient = new THREE.AmbientLight(0xffffff, .6); lightRig.add(ambient);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x8d98a3, 1); lightRig.add(hemi);
+    const ambient = new THREE.AmbientLight(0xffffff, .7); lightRig.add(ambient);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x8d98a3, 1.3); lightRig.add(hemi);
     const lightPositions = [[-3, 4, 5], [4, 1, 3], [0, -4, 2], [-3, 0, -3]];
-    const lights = lightPositions.map(position => {
-      const light = new THREE.DirectionalLight(0xffffff, 1);
+    lightPositions.forEach((position, index) => {
+      const light = new THREE.DirectionalLight(0xffffff, [1.1, .8, .5, .4][index]);
       light.position.set(position[0], position[1], position[2]);
-      lightRig.add(light, light.target); return light;
+      lightRig.add(light, light.target);
     });
-    const setLighting = (mode: Lighting) => {
-      const presets: Record<Lighting, { ambient: number; hemi: number; lights: number[] }> = {
-        soft: { ambient: .7, hemi: 1.3, lights: [1.1, .8, .5, .4] },
-        studio: { ambient: .25, hemi: .8, lights: [3, .65, .15, .65] },
-        surface: { ambient: .15, hemi: .6, lights: [.2, 3.6, .1, .15] },
-        flat: { ambient: 3, hemi: 0, lights: [0, 0, 0, 0] },
-      };
-      const preset = presets[mode]; ambient.intensity = preset.ambient; hemi.intensity = preset.hemi;
-      lights.forEach((light, index) => { light.intensity = preset.lights[index]; }); invalidate();
-    };
     const grid = new THREE.GridHelper(80, 24, 0xa8b5bf, 0xb8c4cd);
     grid.material.transparent = true; grid.material.opacity = .4; grid.material.depthWrite = false;
     grid.rotateX(Math.PI / 2); scene.add(grid);
@@ -120,8 +109,6 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       }
       camera.near = Math.max(max / 10000, .00001); camera.far = Math.max(distance * 100, 1000);
       camera.updateProjectionMatrix(); controls.update(); invalidate();
-      grid.position.set(center.x, center.y, box.min.z - max * .001);
-      grid.scale.setScalar(Math.max(max * 2 / 80, .001));
     };
     const settleControls = () => {
       // Flush pending mouse inertia before assigning an exact view or a keyboard orbit step.
@@ -165,7 +152,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       if (engine.current) engine.current.camera = camera;
       controls.update(); invalidate();
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, setView, orbit, setLighting, setProjection, invalidate };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, setView, orbit, setProjection, invalidate };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height); aspect = Math.max(width, 1) / Math.max(height, 1);
@@ -207,13 +194,25 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   }, []);
 
   useEffect(() => { engine.current?.setProjection(props.projection); }, [props.projection]);
-  useEffect(() => { engine.current?.setLighting(props.lighting); }, [props.lighting]);
 
   useEffect(() => {
     const e = engine.current; if (!e) return;
     e.grid.visible = props.floor;
+    // The floor belongs to the full imported model, never to the camera's current framing.
+    const bounds = new THREE.Box3();
+    props.parts.forEach(part => bounds.union(new THREE.Box3(
+      new THREE.Vector3().fromArray(part.bounds[0]), new THREE.Vector3().fromArray(part.bounds[1]),
+    )));
+    if (bounds.isEmpty()) { e.grid.position.set(0, 0, 0); e.grid.scale.setScalar(1); }
+    else {
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const max = Math.max(size.x, size.y, size.z, .01);
+      e.grid.position.set(center.x, center.y, bounds.min.z - Math.max(max * .00001, .000001));
+      e.grid.scale.setScalar(Math.max(max * 2 / 80, .001));
+    }
     e.invalidate();
-  }, [props.floor]);
+  }, [props.floor, props.parts]);
 
   useEffect(() => {
     const e = engine.current; if (!e || !props.session) return;
@@ -221,6 +220,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const abort = new AbortController();
     const ids = new Set(props.parts.map(part => part.id));
     e.meshes.forEach((mesh, id) => { if (!ids.has(id)) { e.scene.remove(mesh); dispose(mesh); e.meshes.delete(id); } });
+    latest.current.onLoaded(e.meshes.size);
     if (!props.parts.length || props.parts.some(part => !e.meshes.has(part.id))) fitNext.current = true;
     e.invalidate();
     const load = async () => {

@@ -9,7 +9,7 @@ import type { ResultsTab } from './ResultsPanel';
 import { localizeError, useI18n } from './i18n';
 import type { TextKey, Values } from './i18n';
 import type { ObjectMenuState } from './ObjectMenu';
-import type { CameraView, Lighting, Projection, ViewerHandle } from './Viewer';
+import type { CameraView, Projection, ViewerHandle } from './Viewer';
 import { api, partColors } from './types';
 import type { AnalysisResult, CheckKind, CheckTask, Job, Part, Relation } from './types';
 import './style.css';
@@ -38,7 +38,7 @@ export default function App() {
   const [floor, setFloor] = useState(true);
   const [projection, setProjection] = useState<Projection>('perspective');
   const [cameraView, setCameraView] = useState<CameraView | null>('isometric');
-  const [lighting, setLighting] = useState<Lighting>('soft');
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [objectMenu, setObjectMenu] = useState<ObjectMenuState | null>(null);
@@ -91,13 +91,25 @@ export default function App() {
     setParts(previous => [...previous, ...result.parts.map(part => ({ ...part, visible: true }))]);
     if (result.errors.length) setError(result.errors.map(item => `${item.name}: ${item.message}`).join('\n'));
     if (result.parts.length) {
+      setIsolated(null); setSearch(''); setJob(null);
       setNotice({ key: 'imported', values: { count: result.parts.length } });
       const current = await api<AnalysisResult>(`/sessions/${session}/analysis`);
       setTasks(current.tasks);
       if (current.tasks.some(task => task.stale)) setIntersections(false);
     }
   };
-  async function importFiles(files: FileList | File[]) {
+  function queueImport(files: FileList | File[]) {
+    const incoming = Array.from(files);
+    if (incoming.length) setQueuedFiles(previous => [...previous, ...incoming]);
+    if (fileInput.current) fileInput.current.value = '';
+  }
+  useEffect(() => {
+    if (busy || !session || !queuedFiles.length) return;
+    setQueuedFiles([]);
+    void importFiles(queuedFiles);
+  }, [busy, session, queuedFiles]);
+
+  async function importFiles(files: File[]) {
     if (busy || !session || !files.length) return;
     setLoading(true); setError(''); setNotice({ key: 'importing' });
     try {
@@ -113,7 +125,7 @@ export default function App() {
       await addImported(result);
       if (duplicates && result.parts.length) setNotice({ key: 'duplicates' });
     } catch (err) { setError((err as Error).message); setNotice(null); }
-    finally { setLoading(false); if (fileInput.current) fileInput.current.value = ''; }
+    finally { setLoading(false); }
   }
   async function analyze(check: CheckKind = 'RELATIONS') {
     setLoading(true); setError(''); setNotice(null);
@@ -159,21 +171,21 @@ export default function App() {
     setParts(previous => previous.map(part => ({ ...part, visible: true })));
     requestAnimationFrame(() => viewer.current?.fit(parts.map(part => part.id)));
   }
-  async function removePart(id: string) {
-    if (busy) return;
+  async function removeParts(ids: string[]) {
+    if (busy || !ids.length) return;
     setObjectMenu(null);
-    setLoading(true);
+    setLoading(true); setError('');
     try {
       await reviewQueue.current;
-      await api(`/sessions/${session}/parts/${id}`, { method: 'DELETE' });
-      setParts(previous => previous.filter(part => part.id !== id));
-      setRelations(previous => previous.filter(relation => !relation.part_ids.includes(id)));
-      setSelected(previous => previous.filter(pid => pid !== id));
-      setIsolated(null); setActivePair(null); setLoaded(previous => Math.max(0, previous - 1));
+      await api(`/sessions/${session}/parts`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part_ids: ids }) });
+      setParts(previous => previous.filter(part => !ids.includes(part.id)));
+      setRelations(previous => previous.filter(relation => !relation.part_ids.some(id => ids.includes(id))));
+      setSelected(previous => previous.filter(pid => !ids.includes(pid)));
+      setIsolated(null); setActivePair(null); setJob(null);
       const current = await api<AnalysisResult>(`/sessions/${session}/analysis`);
       setTasks(current.tasks);
       if (current.tasks.some(task => task.stale)) setIntersections(false);
-      setNotice({ key: 'removed' });
+      setNotice(ids.length === 1 ? { key: 'removed' } : { key: 'removedCount', values: { count: ids.length } });
     } catch (err) { setError((err as Error).message); }
     finally { setLoading(false); }
   }
@@ -222,6 +234,7 @@ export default function App() {
     setParts(previous => previous.map(item => item.id === part.id ? { ...item, visible: !visible } : item));
     if (!visible && isolated && !isolated.includes(part.id)) setIsolated([...isolated, part.id]);
   }
+  const menuIds = objectMenu ? selected.includes(objectMenu.id) ? selected : [objectMenu.id] : [];
   const listedParts = parts.filter(part => part.name.toLowerCase().includes(search.toLowerCase()));
   const intersectionCount = relations.filter(row => row.kind === 'INTERSECTION').length;
   const fitCount = relations.filter(row => row.kind === 'WITHIN_TOLERANCE').length;
@@ -233,19 +246,20 @@ export default function App() {
     onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth.current++; setDragging(true); } }}
     onDragOver={event => event.preventDefault()}
     onDragLeave={() => { dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); }}
-    onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); void importFiles(event.dataTransfer.files); }}>
-    <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) void importFiles(event.target.files); }} />
+    onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); queueImport(event.dataTransfer.files); }}>
+    <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) queueImport(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.19</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.20</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
-        <button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
+        <span className="import-queue" aria-live="polite">{queuedFiles.length > 0 ? t('importQueued', { count: queuedFiles.length }) : ''}</span>
+        <button className="button primary" disabled={!session} onClick={() => fileInput.current?.click()}><Upload size={16} />{t('import')}</button>
       </div>
     </header>
     <main className="workspace">
       <aside className="objects panel" aria-label={t('objects')}>
         <div className="panel-heading"><h2><Box size={15} />{t('objects')}</h2><span className="count">{parts.length}</span></div>
-        <ObjectList parts={listedParts} selected={selected} isolated={isolated} nameSuffix={duplicateName} onMenu={setObjectMenu} onVisibility={toggleVisibility} onReorder={reorderPart}
+        <ObjectList parts={listedParts} selected={selected} isolated={isolated} nameSuffix={duplicateName} onMenu={setObjectMenu} onDelete={ids => void removeParts(ids)} onVisibility={toggleVisibility} onReorder={reorderPart}
           onChange={ids => { setSelected(ids); setActivePair(null); if (isolated && ids.some(id => !isolated.includes(id))) setIsolated(null); }} />
         <div className="object-tools">
           {searchOpen && <label className="object-search"><Search size={16} /><input autoFocus aria-label={t('search')} placeholder={t('searchPlaceholder')} value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { setSearchOpen(false); setSearch(''); } }} /></label>}
@@ -278,10 +292,10 @@ export default function App() {
             <div className="scene-label"><Box size={16} /><strong>{t(isolated ? 'isolated' : 'fullModel')}</strong><span>{t('visible', { count: parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length, total: parts.length })}</span></div>
             <div className="view-controls"><select aria-label={t('projection')} title={t('projection') + ' · Numpad 5'} value={projection} onChange={event => setProjection(event.target.value as Projection)}><option value="perspective">{t('perspective')}</option><option value="orthographic">{t('orthographic')}</option></select><button className="transparency-toggle" aria-label={t('transparency')} aria-pressed={transparent} title={t('transparencyTip')} disabled={!parts.length} onClick={() => setTransparent(value => !value)}><Layers2 size={15} />{t('transparency')}</button><button className="floor-toggle" aria-label={t('floor')} aria-pressed={floor} title={t('floorTip')} onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />{t('floor')}</button><button title={t('fit')} onClick={() => viewer.current?.fit()}><Maximize size={16} /></button></div>
           </div>
-          <CameraControls viewer={viewer} view={cameraView} selected={selected} lighting={lighting} onLighting={setLighting} onToggleProjection={() => setProjection(value => value === 'perspective' ? 'orthographic' : 'perspective')} />
+          <CameraControls viewer={viewer} view={cameraView} selected={selected} onToggleProjection={() => setProjection(value => value === 'perspective' ? 'orthographic' : 'perspective')} />
           <div className="viewport-stage">
-            <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} lighting={lighting} onViewChange={setCameraView} onSelect={select} onError={setError} onLoaded={setLoaded} />
-            {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={busy || !session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
+            <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} onViewChange={setCameraView} onSelect={select} onError={setError} onLoaded={setLoaded} />
+            {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={!session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
             {parts.length > 0 && loaded < parts.length && <div className="geometry-loading"><LoaderCircle size={17} className="spin" />{t('loadingGeometry', { count: loaded, total: parts.length })}</div>}
             {isolated && <button className="exit-isolation button" onClick={showAll}><ArrowLeft size={16} />{t('back')}</button>}
             <div className="viewport-legend" aria-label={t('colorLegend')}>
@@ -295,7 +309,7 @@ export default function App() {
       <ResultsPanel parts={parts} relations={relations} tasks={tasks} busy={!!busy} tab={panelTab} onTab={setPanelTab} inspected={activePair} onChoose={choosePair} onIsolate={isolatePair} onInspect={focusIntersection} exporting={exporting} onExport={exportChecklist} onReview={(task, done, note) => void reviewTask(task, done, note)} name={part => part.name + duplicateName(part)} />
     </main>
     <footer className="statusbar"><span role="status">{busy ? t('processing') : notice ? t(notice.key, notice.values) : t('ready')}</span><span>{t('modelSummary', { parts: parts.length, pairs: connectedCount })}</span><span className="session-note">{t('sessionOnly')}</span></footer>
-    {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} disabled={!!busy} onClose={() => setObjectMenu(null)} onDelete={() => void removePart(objectMenu.id)} />}
+    {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} count={menuIds.length} disabled={!!busy} onClose={() => setObjectMenu(null)} onDelete={() => void removeParts(menuIds)} />}
     {error && <div className="error-message" role="alert"><TriangleAlert size={20} /><span>{localizeError(error, language)}</span><button className="icon-button" title={t('close')} onClick={() => setError('')}><X size={20} /></button></div>}
     {dragging && <div className="drop-overlay"><Upload size={32} /><h2>{t('dropFiles')}</h2></div>}
   </div>;

@@ -1,15 +1,13 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
-import { Camera, Sun } from 'lucide-react';
-import type { CameraView, Lighting, ViewerHandle } from './Viewer';
+import { Camera } from 'lucide-react';
+import type { CameraView, ViewerHandle } from './Viewer';
 import { useI18n } from './i18n';
 
 type Props = {
   viewer: RefObject<ViewerHandle | null>;
   view: CameraView | null;
   selected: string[];
-  lighting: Lighting;
-  onLighting: (value: Lighting) => void;
   onToggleProjection: () => void;
 };
 
@@ -23,7 +21,7 @@ const views = [
   { id: 'isometric', label: 'view3d', shortcut: '' },
 ] as const;
 
-export function CameraControls({ viewer, view, selected, lighting, onLighting, onToggleProjection }: Props) {
+export function CameraControls({ viewer, view, selected, onToggleProjection }: Props) {
   const { t } = useI18n();
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -55,11 +53,6 @@ export function CameraControls({ viewer, view, selected, lighting, onLighting, o
         title={t(item.label) + (item.shortcut ? ` · ${item.shortcut}` : '')}
         onClick={() => viewer.current?.view(item.id)}>{item.id === 'isometric' ? '3D' : t(item.label)}</button>)}
     </div>
-    <label className="lighting-picker"><Sun size={15} aria-hidden="true" /><select aria-label={t('lighting')} value={lighting} onChange={event => onLighting(event.target.value as Lighting)}>
-      <option value="soft">{t('lightingSoft')}</option>
-      <option value="studio">{t('lightingStudio')}</option>
-      <option value="surface">{t('lightingSurface')}</option>
-      <option value="flat">{t('lightingFlat')}</option>
-    </select></label>
+
   </div>;
 }

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANCE
 from backend.reports import checklist_pdf
 
-app = FastAPI(title='ModelCheck 3D', version='0.19.0')
+app = FastAPI(title='ModelCheck 3D', version='0.20.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -31,6 +31,11 @@ class AnalysisRequest(BaseModel):
 class TaskReview(BaseModel):
     done: bool = Field(strict=True)
     note: str = Field(default='', max_length=5000)
+    model_config = ConfigDict(extra='forbid')
+
+
+class DeletePartsRequest(BaseModel):
+    part_ids: list[str] = Field(min_length=1, max_length=100)
     model_config = ConfigDict(extra='forbid')
 
 
@@ -159,12 +164,25 @@ def part_stl(sid: str, pid: str):
 def delete_part(sid: str, pid: str):
     with lock:
         session = session_for(sid); idle(session)
-        if pid not in session['parts']:
-            raise HTTPException(404, 'Brak części.')
-        del session['parts'][pid]
-        session['tasks'] = {tid: task for tid, task in session['tasks'].items() if task['part_id'] != pid}
-        invalidate_tasks(session)
-        session['relations'] = {key: rel for key, rel in session['relations'].items() if pid not in rel['part_ids']}
+        remove_parts(session, {pid})
+    return {'ok': True}
+
+
+def remove_parts(session, ids):
+    # Validate the entire selection before mutating anything: a failed batch removes nothing.
+    if not ids.issubset(session['parts']):
+        raise HTTPException(404, 'Brak części.')
+    session['parts'] = {pid: part for pid, part in session['parts'].items() if pid not in ids}
+    session['tasks'] = {tid: task for tid, task in session['tasks'].items() if task['part_id'] not in ids}
+    session['relations'] = {key: rel for key, rel in session['relations'].items() if not ids.intersection(rel['part_ids'])}
+    invalidate_tasks(session)
+
+
+@app.delete('/api/sessions/{sid}/parts')
+def delete_parts(sid: str, request: DeletePartsRequest):
+    with lock:
+        session = session_for(sid); idle(session)
+        remove_parts(session, set(request.part_ids))
     return {'ok': True}
 
 

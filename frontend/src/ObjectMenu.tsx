@@ -3,9 +3,9 @@ import { useI18n } from './i18n';
 
 export type ObjectMenuState = { id: string; x: number; y: number; trigger: HTMLButtonElement | null };
 
-type Props = { menu: ObjectMenuState; name: string; disabled: boolean; onClose: () => void; onDelete: () => void };
+type Props = { menu: ObjectMenuState; name: string; count: number; disabled: boolean; onClose: () => void; onDelete: () => void };
 
-export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
+export function ObjectMenu({ menu, name, count, disabled, onClose, onDelete }: Props) {
   const { t, language } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -45,7 +45,7 @@ export function ObjectMenu({ menu, name, disabled, onClose, onDelete }: Props) {
   }, [menu, onClose]);
 
   const actions = [
-    { id: 'delete', label: t('remove'), disabled, run: onDelete },
+    { id: 'delete', label: count > 1 ? t('removeSelected', { count }) : t('remove'), disabled, run: onDelete },
   ].sort((a, b) => a.label.localeCompare(b.label, language));
   return <div ref={ref} className="object-context-menu" role="menu" aria-label={t('objectOptions', { name })} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onContextMenu={event => event.preventDefault()}>
     {actions.map(action => <button key={action.id} role="menuitem" disabled={action.disabled} onClick={action.run}>{action.label}</button>)}

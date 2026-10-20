@@ -73,7 +73,7 @@ test('Six views and numpad shortcuts agree in both projections and preserve sele
   expect(errors).toEqual([]);
 });
 
-test('Lighting presets change shading without changing selection, framing or result overlays', async ({ page }, testInfo) => {
+test('Soft is the only lighting and works with selection, transparency and result overlays', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -83,37 +83,23 @@ test('Lighting presets change shading without changing selection, framing or res
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await page.locator('.object-select').first().click();
   const canvas = page.locator('canvas');
-  const lighting = page.getByRole('combobox', { name: 'Lighting', exact: true });
-  await expect(lighting).toHaveValue('soft');
-  const soft = await canvas.screenshot();
+  await expect(page.getByRole('combobox', { name: 'Lighting', exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('viewport-soft.png') });
-  for (const preset of ['studio', 'surface', 'flat']) {
-    await lighting.selectOption(preset);
-    expect(Buffer.compare(soft, await canvas.screenshot())).not.toBe(0);
-    await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(1);
-    await page.screenshot({ path: testInfo.outputPath(`viewport-${preset}.png`) });
-  }
-  await lighting.selectOption('soft');
-  expect(Buffer.compare(soft, await canvas.screenshot())).toBe(0);
   await page.getByRole('button', { name: 'Check intersections', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
   await expect(page.getByRole('checkbox', { name: 'Show intersections', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
-  // With overlays visible, returning to the same light restores exactly the same image.
   await expect(page.locator('.fit-legend')).toBeVisible();
-  await page.waitForTimeout(250);
-  const fittedSoft = await canvas.screenshot();
-  await lighting.selectOption('surface');
-  expect(Buffer.compare(fittedSoft, await canvas.screenshot())).not.toBe(0);
-  await lighting.selectOption('soft');
-  expect(Buffer.compare(fittedSoft, await canvas.screenshot())).toBe(0);
+  const fitted = await canvas.screenshot();
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  expect(Buffer.compare(fitted, await canvas.screenshot())).not.toBe(0);
   await page.screenshot({ path: testInfo.outputPath('viewport-fit.png') });
   await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('pl');
-  await expect(page.getByRole('combobox', { name: 'Oświetlenie', exact: true })).toHaveValue('soft');
+  await expect(page.getByRole('combobox', { name: 'Oświetlenie', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Tył', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1100, height: 780 });
   for (const button of await page.locator('.camera-views button').all()) await expect(button).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Oświetlenie', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Oświetlenie', exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('viewport-compact-pl.png') });
   expect(errors).toEqual([]);
 });

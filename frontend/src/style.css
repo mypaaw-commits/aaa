@@ -89,8 +89,6 @@ progress { display: block; width: 100%; height: 4px; margin-top: 9px; accent-col
 .camera-views button { min-height: 29px; padding: 5px 8px; color: #596d7c; border: 1px solid transparent; border-radius: 5px; font-size: 11px; }
 .camera-views button:hover { background: #e3ebf1; color: #344f63; }
 .camera-views button[aria-pressed=true] { background: #fff; color: #315e7b; border-color: #c5d5e1; box-shadow: 0 1px 3px #203b4c0a; }
-.lighting-picker { display: flex; align-items: center; gap: 5px; color: #758b9b; margin-left: auto; }
-.lighting-picker select { min-height: 29px; width: 130px; padding: 4px 5px; border: 1px solid #cbd7e0; border-radius: 5px; background: #fff; color: #536875; font-size: 11px; cursor: pointer; }
 .welcome { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; color: #405967; pointer-events: none; }
 .welcome > * { pointer-events: auto; }
 .welcome h1 { font-size: 21px; font-weight: 500; margin-bottom: 10px; letter-spacing: -.4px; }
@@ -260,3 +258,5 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .part-review-scroll { flex: 1; }
 
 .viewport-legend:empty { display: none; }
+
+.import-queue { color: #d5e2ea; font-size: 11px; }

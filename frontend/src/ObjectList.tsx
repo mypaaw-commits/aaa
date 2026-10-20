@@ -10,11 +10,12 @@ type Props = {
   parts: Part[]; selected: string[]; isolated: string[] | null;
   onChange: (ids: string[]) => void; onVisibility: (part: Part) => void;
   onMenu: (menu: ObjectMenuState) => void; nameSuffix: (part: Part) => string;
+  onDelete: (ids: string[]) => void;
   onReorder: (id: string, target: string, before: boolean) => void;
 };
 type Drag = { x: number; y: number; startX: number; startY: number; clientX: number; clientY: number; base: string[]; ctrl: boolean; shift: boolean; moved: boolean };
 
-export function ObjectList({ parts, selected, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder }: Props) {
+export function ObjectList({ parts, selected, isolated, onChange, onVisibility, onMenu, nameSuffix, onReorder, onDelete }: Props) {
   const { t } = useI18n();
   const list = useRef<HTMLDivElement>(null);
   const anchor = useRef<string | null>(null);
@@ -49,6 +50,9 @@ export function ObjectList({ parts, selected, isolated, onChange, onVisibility, 
   }
   function keyboard(event: KeyboardEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).closest('.visibility-button')) return;
+    if (event.key === 'Delete' && event.code !== 'NumpadDecimal' && !event.ctrlKey && !event.altKey && !event.metaKey && selected.length) {
+      event.preventDefault(); onDelete(selected); return;
+    }
     const ctrl = event.ctrlKey || event.metaKey;
     if (event.key === 'Escape') {
       event.preventDefault();
