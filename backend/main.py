@@ -17,7 +17,7 @@ from backend.reports import checklist_pdf
 from backend.stl_stream import stl_chunks
 from backend.analysis_control import AnalysisCancelled, AnalysisControl, current_control
 
-app = FastAPI(title='ModelCheck 3D', version='0.24.0')
+app = FastAPI(title='ModelCheck 3D', version='0.24.1')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()

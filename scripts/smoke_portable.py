@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 from urllib.request import Request, urlopen
 import zipfile
 
@@ -135,6 +136,10 @@ def main():
             while not lines.empty():
                 log.append(lines.get_nowait())
             print(''.join(log))
+            if os.environ.get('GITHUB_ACTIONS') == 'true':
+                details = traceback.format_exc() + '\n' + ''.join(log[-80:])
+                escaped = details.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                print(f'::error title=Portable smoke test failed::{escaped}', flush=True)
             raise
         finally:
             process.terminate()

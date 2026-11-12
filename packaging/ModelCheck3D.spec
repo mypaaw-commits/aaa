@@ -1,6 +1,7 @@
 # Build on the target platform. Windows executables are built on Windows x64.
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all, collect_delvewheel_libs_directory, copy_metadata
+from importlib.metadata import distribution
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 root = Path(SPECPATH).parent
 datas = [(str(root / 'frontend' / 'dist'), 'frontend/dist'),
@@ -13,7 +14,13 @@ for package in ('manifold3d', 'trimesh'):
     datas += package_data
     binaries += package_binaries
     hiddenimports += package_imports
-datas, binaries = collect_delvewheel_libs_directory('manifold3d', datas=datas, binaries=binaries)
+# manifold3d is a standalone extension, not a Python package. The delvewheel
+# package-directory helper fails on Windows for that layout. Its wheel puts
+# the renamed MSVC DLL beside the .pyd; collect those DLLs from the wheel record.
+manifold_distribution = distribution('manifold3d')
+for entry in manifold_distribution.files or ():
+    if str(entry).lower().endswith('.dll'):
+        binaries.append((str(manifold_distribution.locate_file(entry)), '.'))
 
 # Keep metadata and bundled license notices, including for packages imported
 # dynamically by the geometry/PDF engines.

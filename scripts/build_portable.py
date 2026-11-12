@@ -1,11 +1,14 @@
 """Build the portable ZIP on its target OS; no installation is done at runtime."""
 import hashlib
 import json
+import os
 import platform
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import traceback
+from collections import deque
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,10 +24,18 @@ def main():
     if platform.machine().lower() not in ('amd64', 'x86_64'):
         raise SystemExit('Build on an x64 machine.')
     version = json.loads((ROOT / 'frontend/package.json').read_text())['version']
-    subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
-                    '--distpath', str(ROOT / 'build/portable-dist'),
-                    '--workpath', str(ROOT / 'build/portable-work'),
-                    str(ROOT / 'packaging/ModelCheck3D.spec')], cwd=ROOT, check=True)
+    command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
+               '--distpath', str(ROOT / 'build/portable-dist'),
+               '--workpath', str(ROOT / 'build/portable-work'),
+               str(ROOT / 'packaging/ModelCheck3D.spec')]
+    output_tail = deque(maxlen=50)
+    process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+    for line in process.stdout:
+        print(line, end='', flush=True)
+        output_tail.append(line)
+    if process.wait():
+        raise RuntimeError('PyInstaller failed:\n' + ''.join(output_tail))
     name = f'ModelCheck3D-{system}-x64'
     destination = ROOT / 'release' / name
     if destination.exists():
@@ -55,4 +66,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception:
+        details = traceback.format_exc()
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            escaped = details.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+            print(f'::error title=Portable packaging failed::{escaped}', flush=True)
+        raise
