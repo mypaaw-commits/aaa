@@ -58,9 +58,9 @@ def test_cached_pairs_reused_across_checks_and_only_new_pairs_computed(monkeypat
     calls = []
     original = main.analyze_pair
 
-    def counted(a, b):
+    def counted(a, b, tolerance):
         calls.append((a, b))
-        return original(a, b)
+        return original(a, b, tolerance)
 
     monkeypatch.setattr(main, 'analyze_pair', counted)
     first = analyze(sid)

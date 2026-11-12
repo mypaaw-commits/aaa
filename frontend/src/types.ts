@@ -5,7 +5,7 @@ export type CheckKind = 'ANALYSIS';
 export type CheckTask = { id: string; part_id: string; check: 'INTERSECTIONS'; done: boolean; note: string; stale: boolean; result: 'CLEAR' | 'INTERSECTION' | 'UNCERTAIN' | 'WITHIN_TOLERANCE'; intersections: number; uncertain_pairs: number; coincident_pairs: number; fit_pairs: number };
 export type AnalysisResult = { job: Job | null; relations: Relation[]; tasks: CheckTask[] };
 export type Job = { id: string; check: CheckKind; state: 'running' | 'done' | 'error' | 'cancelled'; stage?: 'bounds' | 'intersection' | 'coincidence' | 'fit' | 'distance' | 'results' | 'stopping'; completed: number; total: number; seconds: number; error: string | null; fit_tolerance: number };
-export const partColors = { idle: '#949494', selected: '#628ca8', intersection: '#cf4545', fit: '#39bfa9', coincident: '#956bb6' };
+export const partColors = { idle: '#8c96a0', selected: '#4e83ba', intersection: '#ee3e32', fit: '#19b69a', coincident: '#9b70cf' };
 export function partColor(id: string, selected: string[]) {
   return selected.includes(id) ? partColors.selected : partColors.idle;
 }

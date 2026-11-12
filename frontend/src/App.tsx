@@ -19,6 +19,10 @@ export default function App() {
   const { t, language, setLanguage } = useI18n();
   const [session, setSession] = useState('');
   const [fitTolerance, setFitTolerance] = useState<number | null>(null);
+  const [marginDraft, setMarginDraft] = useState('0.001');
+  const [savingMargin, setSavingMargin] = useState(false);
+  const savedMargin = useRef<number | null>(null);
+  const marginQueue = useRef<Promise<void>>(Promise.resolve());
   const [parts, setParts] = useState<Part[]>([]);
   const [relations, setRelations] = useState<Relation[]>([]);
   const [tasks, setTasks] = useState<CheckTask[]>([]);
@@ -51,8 +55,33 @@ export default function App() {
   const intersectionsReady = tasks.length > 0 && tasks.every(task => !task.stale);
 
   useEffect(() => {
-    api<{ id: string; fit_tolerance: number }>('/sessions', { method: 'POST' }).then(result => { setSession(result.id); setFitTolerance(result.fit_tolerance); }).catch(err => setError(err.message));
+    api<{ id: string; fit_tolerance: number }>('/sessions', { method: 'POST' }).then(result => { setSession(result.id); setFitTolerance(result.fit_tolerance); savedMargin.current = result.fit_tolerance; }).catch(err => setError(err.message));
   }, []);
+  useEffect(() => {
+    if (fitTolerance !== null) setMarginDraft(language === 'pl' ? String(fitTolerance).replace('.', ',') : String(fitTolerance));
+  }, [fitTolerance, language]);
+
+  function saveMargin() {
+    const value = Number(marginDraft.trim().replace(',', '.'));
+    if (!marginDraft.trim() || !Number.isFinite(value) || value < 0 || value > 10) return Promise.reject(new Error(t('invalidMargin')));
+    const save = marginQueue.current.then(async () => {
+      if (savedMargin.current === value) return;
+      setSavingMargin(true);
+      try {
+        await reviewQueue.current;
+        if (reviewSaveFailed.current) throw new Error(t('reviewSaveFailed'));
+        const result = await api<{ fit_tolerance: number; tasks: CheckTask[] }>(`/sessions/${session}/settings`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fit_tolerance: value }),
+        });
+        savedMargin.current = result.fit_tolerance;
+        setFitTolerance(result.fit_tolerance); setTasks(result.tasks); setRelations([]);
+        setJob(null); setIntersections(false); setActivePair(null); setError('');
+        setNotice({ key: 'marginChanged' });
+      } finally { setSavingMargin(false); }
+    });
+    marginQueue.current = save.catch(() => {});
+    return save;
+  }
   useEffect(() => {
     if (!session) return;
     const close = (event: PageTransitionEvent) => {
@@ -110,10 +139,10 @@ export default function App() {
     if (fileInput.current) fileInput.current.value = '';
   }
   useEffect(() => {
-    if (busy || !session || !queuedFiles.length) return;
+    if (busy || savingMargin || !session || !queuedFiles.length) return;
     setQueuedFiles([]);
     void importFiles(queuedFiles);
-  }, [busy, session, queuedFiles]);
+  }, [busy, savingMargin, session, queuedFiles]);
 
   async function importFiles(files: File[]) {
     if (busy || !session || !files.length) return;
@@ -126,6 +155,7 @@ export default function App() {
         valid.push(file); form.append('files', file);
       }
       const duplicates = valid.some(file => parts.some(part => part.name === file.name)) || new Set(valid.map(file => file.name)).size < valid.length;
+      await marginQueue.current;
       await reviewQueue.current;
       const result = await api<Imported>(`/sessions/${session}/parts`, { method: 'POST', body: form });
       await addImported(result);
@@ -136,6 +166,7 @@ export default function App() {
   async function analyze() {
     setLoading(true); setError(''); setNotice(null);
     try {
+      await saveMargin();
       await reviewQueue.current;
       const result = await api<Job>(`/sessions/${session}/analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       // Always poll once: a small model can finish before POST returns.
@@ -188,6 +219,7 @@ export default function App() {
     setObjectMenu(null);
     setLoading(true); setError('');
     try {
+      await marginQueue.current;
       await reviewQueue.current;
       await api(`/sessions/${session}/parts`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ part_ids: ids }) });
       setParts(previous => previous.filter(part => !ids.includes(part.id)));
@@ -220,6 +252,7 @@ export default function App() {
     if (busy || !session || !parts.length) return;
     setExporting(true); setError('');
     try {
+      await saveMargin();
       await reviewQueue.current;
       if (reviewSaveFailed.current) throw new Error(t('reviewSaveFailed'));
       const response = await fetch(`/api/sessions/${session}/report`, {
@@ -261,7 +294,7 @@ export default function App() {
     onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); queueImport(event.dataTransfer.files); }}>
     <input type="file" ref={fileInput} accept=".stl" multiple hidden onChange={event => { if (event.target.files) queueImport(event.target.files); }} />
     <header className="topbar">
-      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.24</span></div>
+      <div className="brand"><Box size={20} /><strong>ModelCheck <span>3D</span></strong><span className="app-version">0.25</span></div>
       <div className="header-actions">
         <label className="language-picker" title={t('language')}><Languages size={16} /><select aria-label={t('language')} value={language} onChange={event => setLanguage(event.target.value as 'en' | 'pl')}><option value="en">English</option><option value="pl">Polski</option></select></label>
         <span className="import-queue" aria-live="polite">{queuedFiles.length > 0 ? t('importQueued', { count: queuedFiles.length }) : ''}</span>
@@ -298,7 +331,10 @@ export default function App() {
             <label className="intersection-toggle"><input type="checkbox" checked={intersections && intersectionsReady} disabled={!intersectionsReady} onChange={event => setIntersections(event.target.checked)} /><span>{t('showIntersections')}</span></label>
             <span className="analysis-heading">{job?.state === 'running' ? t('pairsProgress', { done: job.completed, total: job.total }) : job?.state === 'done' ? t(intersectionCount === 1 ? 'intersectionsFoundOne' : 'intersectionsFound', { count: intersectionCount }) : ''}{job?.state === 'done' && fitCount > 0 && ` · ${t('withinToleranceCount', { count: fitCount })}`}</span>
           </div>
-          {fitTolerance !== null && <span className="fit-margin" title={t('fitMarginTip')}>{t('fitMargin', { value: fitTolerance.toLocaleString(language, { maximumFractionDigits: 6 }) })}</span>}
+          {fitTolerance !== null && <label className="fit-margin" title={t('marginHelp')}><span>{t('fitMarginLabel')}</span><input aria-label={t('fitMarginInput')} inputMode="decimal" value={marginDraft} disabled={busy || savingMargin || !session}
+            onChange={event => setMarginDraft(event.target.value)}
+            onBlur={() => { void saveMargin().catch(err => setError((err as Error).message)); }}
+            onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} /><span>mm</span></label>}
           {job?.state === 'running' && <progress aria-label={t('analysisProgress')} max={job.total} value={job.completed} />}
         </section>
         <div className="viewport">
@@ -306,7 +342,7 @@ export default function App() {
             <div className="scene-label"><Box size={16} /><strong>{t(isolated ? 'isolated' : 'fullModel')}</strong><span>{t('visible', { count: parts.filter(part => part.visible && (!isolated || isolated.includes(part.id))).length, total: parts.length })}</span></div>
             <div className="view-controls"><select aria-label={t('projection')} title={t('projection') + ' · Numpad 5'} value={projection} onChange={event => setProjection(event.target.value as Projection)}><option value="perspective">{t('perspective')}</option><option value="orthographic">{t('orthographic')}</option></select><button className="transparency-toggle" aria-label={t('transparency')} aria-pressed={transparent} title={t('transparencyTip')} disabled={!parts.length} onClick={() => setTransparent(value => !value)}><Layers2 size={15} />{t('transparency')}</button><button className="floor-toggle" aria-label={t('floor')} aria-pressed={floor} title={t('floorTip')} onClick={() => setFloor(value => !value)}><Grid2X2 size={15} />{t('floor')}</button><button title={t('fit')} onClick={() => viewer.current?.fit()}><Maximize size={16} /></button></div>
           </div>
-          <CameraControls viewer={viewer} view={cameraView} selected={selected} onToggleProjection={() => setProjection(value => value === 'perspective' ? 'orthographic' : 'perspective')} />
+          <CameraControls viewer={viewer} view={cameraView} selected={selected} ready={parts.length > 0 && loaded === parts.length} onError={setError} onSaved={() => setNotice({ key: 'screenshotSaved' })} onToggleProjection={() => setProjection(value => value === 'perspective' ? 'orthographic' : 'perspective')} />
           <div className="viewport-stage">
             <Viewer ref={viewer} session={session} parts={parts} relations={relations} selected={selected} transparent={transparent} isolated={isolated} intersections={intersections && intersectionsReady} floor={floor} projection={projection} onViewChange={setCameraView} onSelect={select} onError={setError} onLoaded={setLoaded} />
             {!parts.length && <div className="welcome"><h1>{t('noModel')}</h1><p>{t('importHint')}</p><button className="button primary" disabled={!session} onClick={() => fileInput.current?.click()}><Upload size={17} />{t('chooseFiles')}</button></div>}
@@ -320,7 +356,7 @@ export default function App() {
           </div>
         </div>
       </section>
-      <ResultsPanel parts={parts} relations={relations} tasks={tasks} busy={!!busy} tab={panelTab} onTab={setPanelTab} inspected={activePair} onChoose={choosePair} onIsolate={isolatePair} onInspect={focusIntersection} exporting={exporting} onExport={exportChecklist} onReview={(task, done, note) => void reviewTask(task, done, note)} name={part => part.name + duplicateName(part)} />
+      <ResultsPanel parts={parts} relations={relations} tasks={tasks} busy={!!busy || savingMargin} tab={panelTab} onTab={setPanelTab} inspected={activePair} onChoose={choosePair} onIsolate={isolatePair} onInspect={focusIntersection} exporting={exporting} onExport={exportChecklist} onReview={(task, done, note) => void reviewTask(task, done, note)} name={part => part.name + duplicateName(part)} />
     </main>
     <footer className="statusbar"><span role="status">{busy ? t('processing') : notice ? t(notice.key, notice.values) : t('ready')}</span><span>{t('modelSummary', { parts: parts.length, pairs: connectedCount })}</span><span className="session-note">{t('sessionOnly')}</span></footer>
     {objectMenu && parts.some(part => part.id === objectMenu.id) && <ObjectMenu menu={objectMenu} name={parts.find(part => part.id === objectMenu.id)!.name} count={menuIds.length} disabled={!!busy} onClose={() => setObjectMenu(null)} onDelete={() => void removeParts(menuIds)} />}

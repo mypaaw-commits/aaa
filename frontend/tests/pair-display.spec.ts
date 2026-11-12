@@ -44,7 +44,7 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
   for (const name of ['copy.stl', 'original.stl']) {
     const row = page.locator('.object-row').filter({ hasText: name });
     await expect(row).toHaveAttribute('aria-selected', 'true');
-    await expect(row.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
+    await expect(row.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(78, 131, 186)');
   }
   await expect(page.locator('.object-row').filter({ hasText: 'other.stl' })).toHaveAttribute('aria-selected', 'false');
   await page.getByRole('button', { name: 'Inspect pair: copy.stl / original.stl', exact: true }).click();

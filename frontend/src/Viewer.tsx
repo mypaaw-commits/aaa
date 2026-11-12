@@ -10,11 +10,12 @@ import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
 
 export type CameraView = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'isometric';
-export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void };
+export type ImageFormat = 'png' | 'jpeg' | 'webp';
+export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void; capture: (format: ImageFormat) => Promise<Blob> };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
-type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setProjection: (mode: Projection) => void; invalidate: () => void };
+type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setProjection: (mode: Projection) => void; invalidate: () => void; draw: () => void };
 // Z is up in imported STL coordinates. A small pole offset keeps OrbitControls stable.
 const viewDirections: Record<CameraView, [number, number, number]> = {
   front: [0, -1, 0], back: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0],
@@ -22,11 +23,15 @@ const viewDirections: Record<CameraView, [number, number, number]> = {
 };
 const loader = new STLLoader();
 function dispose(object: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const disposedMaterials = new Set<THREE.Material>();
   object.traverse(child => {
     if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
-      child.geometry.dispose();
+      if (!geometries.has(child.geometry)) { child.geometry.dispose(); geometries.add(child.geometry); }
       const materials = Array.isArray(child.material) ? child.material : [child.material];
-      materials.forEach(material => material.dispose());
+      materials.forEach(material => {
+        if (!disposedMaterials.has(material)) { material.dispose(); disposedMaterials.add(material); }
+      });
     }
   });
 }
@@ -37,16 +42,42 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   const engine = useRef<Engine | null>(null);
   const latest = useRef(props); latest.current = props;
   const fitNext = useRef(true);
+  const overlayReady = useRef<Promise<boolean>>(Promise.resolve(true));
   useImperativeHandle(ref, () => ({
     fit: ids => engine.current?.fit(ids),
     view: view => engine.current?.setView(view),
     orbit: (horizontal, vertical) => engine.current?.orbit(horizontal, vertical),
+    capture: async format => {
+      // Wait for the current overlay, including a replacement triggered by
+      // isolation/visibility changes. Never export an unfinished result image.
+      for (;;) {
+        const pending = overlayReady.current;
+        if (!await pending) throw new Error('Screenshot unavailable: result geometry did not load.');
+        if (pending === overlayReady.current) break;
+      }
+      const e = engine.current;
+      if (!e) throw new Error('Screenshot unavailable: 3D view is not ready.');
+      e.draw();
+      const source = e.renderer.domElement;
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width; canvas.height = source.height;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Screenshot unavailable: image encoder is not ready.');
+      // Copy immediately after drawing: no permanent preserveDrawingBuffer
+      // flag and no additional cost for ordinary viewport rendering.
+      context.drawImage(source, 0, 0);
+      const mime = `image/${format}`;
+      return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => {
+        if (blob?.type === mime) resolve(blob);
+        else reject(new Error('Screenshot format is not supported by this browser.'));
+      }, mime, .95));
+    },
   }), []);
 
   useEffect(() => {
     const container = host.current!;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#e2e8ed');
+    scene.background = new THREE.Color('#dce2e7');
     let camera: Camera = new THREE.PerspectiveCamera(40, 1, .01, 100000);
     let aspect = 1;
     camera.up.set(0, 0, 1); camera.position.set(35, -52.5, 35);
@@ -152,7 +183,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       if (engine.current) engine.current.camera = camera;
       controls.update(); invalidate();
     };
-    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, setView, orbit, setProjection, invalidate };
+    const draw = () => { lightRig.quaternion.copy(camera.quaternion); renderer.render(scene, camera); dirty = false; };
+    engine.current = { scene, camera, controls, renderer, meshes, overlays, grid, fit, setView, orbit, setProjection, invalidate, draw };
     const resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height); aspect = Math.max(width, 1) / Math.max(height, 1);
@@ -164,7 +196,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const animate = () => {
       frame = requestAnimationFrame(animate); controls.update();
       // Render only on changes; large STL scenes should not keep an idle GPU busy.
-      if (dirty) { lightRig.quaternion.copy(camera.quaternion); renderer.render(scene, camera); dirty = false; }
+      if (dirty) draw();
     }; animate();
     let start: [number, number] = [0, 0];
     const down = (event: PointerEvent) => {
@@ -254,7 +286,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       mesh.material.color.set(partColor(part.id, current.selected));
       mesh.material.emissive.set('#000000');
       mesh.material.emissiveIntensity = 0;
-      mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .25 : 1;
+      mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .2 : 1;
       mesh.material.depthWrite = !ghost; mesh.material.wireframe = false;
     }
     e.invalidate();
@@ -268,27 +300,39 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     clear();
     const visible = new Set(props.parts.filter(part => part.visible && (!props.isolated || props.isolated.includes(part.id))).map(part => part.id));
     const load = async () => {
+      let success = true;
       for (const relation of props.relations) {
         if (!props.intersections || !['INTERSECTION', 'WITHIN_TOLERANCE'].includes(relation.kind) || !relation.part_ids.every(id => visible.has(id))) continue;
         try {
           const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/intersection`, { signal: abort.signal });
           if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
           const geometry = loader.parse(await response.arrayBuffer());
-          if (cancelled) { geometry.dispose(); return; }
-          const material = new THREE.MeshBasicMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? partColors.fit : relation.coincident ? partColors.coincident : partColors.intersection, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true });
+          if (cancelled) { geometry.dispose(); return true; }
+          const color = relation.kind === 'WITHIN_TOLERANCE' ? partColors.fit : relation.coincident ? partColors.coincident : partColors.intersection;
+          // Faint X-ray context for hidden overlap; solid, shaded foreground
+          // for the visible surface. Both meshes share the original geometry.
+          const xray = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .18,
+            side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true }));
+          xray.renderOrder = 8; e.overlays.add(xray);
+          const material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .12,
+            roughness: 1, metalness: 0, transparent: true, opacity: .98, side: THREE.DoubleSide,
+            depthWrite: true, depthTest: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+            toneMapped: false, forceSinglePass: true });
           const mesh = new THREE.Mesh(geometry, material);
           mesh.renderOrder = 10; e.overlays.add(mesh);
-          const edges = new THREE.EdgesGeometry(geometry, 25);
+          const edges = new THREE.EdgesGeometry(geometry, 35);
           const lineGeometry = new LineSegmentsGeometry().setPositions(edges.getAttribute('position').array as Float32Array);
           edges.dispose();
-          const lineMaterial = new LineMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? '#a3f4df' : relation.coincident ? '#d5b4ee' : '#ff9696', linewidth: 1.5, depthTest: false, depthWrite: false, transparent: true, opacity: 1, toneMapped: false });
+          const lineMaterial = new LineMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? '#b9ffeb' : relation.coincident ? '#eee0ff' : '#fff0d9', linewidth: 2, depthTest: true, depthWrite: false,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, transparent: true, opacity: 1, toneMapped: false });
           const lines = new LineSegments2(lineGeometry, lineMaterial);
           lines.renderOrder = 11; e.overlays.add(lines);
           e.invalidate();
-        } catch (error) { if (!cancelled) latest.current.onError(error instanceof Error ? error.message : String(error)); }
+        } catch (error) { if (!cancelled) { success = false; latest.current.onError(error instanceof Error ? error.message : String(error)); } }
       }
+      return success;
     };
-    void load();
+    overlayReady.current = load();
     return () => { cancelled = true; abort.abort(); clear(); };
   }, [props.relations, props.parts.map(part => `${part.id}:${part.visible}`).sort().join(','), props.isolated, props.intersections, props.session]);
 

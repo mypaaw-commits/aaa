@@ -36,7 +36,7 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   const intersections = page.getByRole('checkbox', { name: 'Show intersections', exact: true });
   await expect(intersections).toBeChecked();
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
-  await expect(page.locator('.fit-margin')).toHaveText('Fit margin: 0.001 mm');
+  await expect(page.getByRole('textbox', { name: 'Fit margin (mm)', exact: true })).toHaveValue('0.001');
   await expect.poll(async () => (await viewPixels(page)).teal).toBeGreaterThan(50);
   expect((await viewPixels(page)).red).toBe(0);
   await expect(page.locator('.fit-legend')).toHaveText('Within tolerance');
@@ -50,13 +50,13 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   await expect(page.locator('#checks-panel .pair-status.withinTolerance')).toHaveText('Within tolerance');
   await page.getByRole('button', { name: 'Inspect pair: key.stl / socket.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
-  for (const swatch of await page.locator('.object-row[aria-selected=true] .part-swatch').all()) await expect(swatch).toHaveCSS('background-color', 'rgb(98, 140, 168)');
+  for (const swatch of await page.locator('.object-row[aria-selected=true] .part-swatch').all()) await expect(swatch).toHaveCSS('background-color', 'rgb(78, 131, 186)');
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(page.locator('.review-status.withinTolerance')).toHaveCount(2);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('pl');
   await expect(page.locator('.review-status.withinTolerance')).toHaveText(['W marginesie dopasowania', 'W marginesie dopasowania']);
-  await expect(page.locator('.fit-margin')).toHaveText('Margines dopasowania: 0,001 mm');
+  await expect(page.getByRole('textbox', { name: 'Margines dopasowania (mm)', exact: true })).toHaveValue('0,001');
   await page.screenshot({ path: testInfo.outputPath('fitted-tolerance-pl.png') });
   expect(contactRequests).toEqual([]);
   expect(errors).toEqual([]);

@@ -37,8 +37,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.waitForTimeout(300);
   await page.getByRole('button', { name: 'Select pair: A.stl / B.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
-  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
-  await expect(page.locator('.object-row').filter({ hasText: 'B.stl' }).locator('.part-swatch')).toHaveCSS('background-color', 'rgb(98, 140, 168)');
+  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(78, 131, 186)');
+  await expect(page.locator('.object-row').filter({ hasText: 'B.stl' }).locator('.part-swatch')).toHaveCSS('background-color', 'rgb(78, 131, 186)');
   await expect(page.locator('.scene-label')).toContainText('3 / 3 visible');
   // Material updates reach the WebGL canvas after the DOM selection is updated.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));

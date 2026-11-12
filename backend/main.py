@@ -17,7 +17,7 @@ from backend.reports import checklist_pdf
 from backend.stl_stream import stl_chunks
 from backend.analysis_control import AnalysisCancelled, AnalysisControl, current_control
 
-app = FastAPI(title='ModelCheck 3D', version='0.24.1')
+app = FastAPI(title='ModelCheck 3D', version='0.25.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -26,6 +26,11 @@ LIMIT = 200 * 1024 * 1024
 
 class AnalysisRequest(BaseModel):
     check: Literal['ANALYSIS'] = 'ANALYSIS'
+    model_config = ConfigDict(extra='forbid')
+
+
+class FitSettings(BaseModel):
+    fit_tolerance: float = Field(ge=0, le=10, allow_inf_nan=False, strict=True)
     model_config = ConfigDict(extra='forbid')
 
 
@@ -100,8 +105,23 @@ def health():
 def create_session():
     sid = uuid4().hex
     with lock:
-        sessions[sid] = {'parts': {}, 'relations': {}, 'tasks': {}, 'busy': False, 'job': None}
+        sessions[sid] = {'parts': {}, 'relations': {}, 'tasks': {}, 'busy': False, 'job': None,
+                         'fit_tolerance': FIT_TOLERANCE}
     return {'id': sid, 'fit_tolerance': FIT_TOLERANCE}
+
+
+@app.patch('/api/sessions/{sid}/settings')
+def update_fit_settings(sid: str, settings: FitSettings):
+    with lock:
+        session = session_for(sid); idle(session)
+        if session['fit_tolerance'] != settings.fit_tolerance:
+            session['fit_tolerance'] = settings.fit_tolerance
+            session['relations'].clear()
+            for part in session['parts'].values():
+                part['shape'].cores.clear()
+            session['job'] = None
+            invalidate_tasks(session)
+        return {'fit_tolerance': session['fit_tolerance'], 'tasks': list(session['tasks'].values())}
 
 
 @app.delete('/api/sessions/{sid}')
@@ -214,6 +234,7 @@ def delete_parts(sid: str, request: DeletePartsRequest):
 def run_analysis(session, ids, job):
     pairs = list(combinations(ids, 2))
     results = {}
+    tolerance = job.get('fit_tolerance', session.get('fit_tolerance', FIT_TOLERANCE))
     control = job.setdefault('_control', AnalysisControl(lambda name: job.update(stage=name)))
     token = current_control.set(control)
     try:
@@ -224,12 +245,12 @@ def run_analysis(session, ids, job):
             cached = session['relations'].get(rid)
             # Imported shapes are immutable. Importing/deleting other parts or reviewing
             # a checklist does not change this pair's geometry. Uncertain results retry.
-            if cached and cached['kind'] != 'UNCERTAIN' and cached['fit_tolerance'] == FIT_TOLERANCE:
+            if cached and cached['kind'] != 'UNCERTAIN' and cached['fit_tolerance'] == tolerance:
                 results[rid] = cached
                 job['reused'] += 1
             else:
                 shape_a, shape_b = session['parts'][a]['shape'], session['parts'][b]['shape']
-                metadata, common = analyze_pair(shape_a, shape_b)
+                metadata, common = analyze_pair(shape_a, shape_b, tolerance)
                 results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
                 job['computed'] += 1
             job['completed'] = i + 1
@@ -284,7 +305,7 @@ def start_analysis(sid: str, request: AnalysisRequest):
             raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
         job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
-               'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': FIT_TOLERANCE,
+               'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': session['fit_tolerance'],
                'reused': 0, 'computed': 0}
         job['stage'] = 'bounds'
         job['_control'] = AnalysisControl(lambda name: job.update(stage=name))
@@ -337,7 +358,8 @@ def export_report(sid: str, request: ReportRequest):
             raise HTTPException(409, 'Model zmieniony. Ponów eksport checklisty.')
         parts = [session['parts'][pid]['meta'].copy() for pid in ids]
         tasks = {task['part_id']: task.copy() for task in session['tasks'].values()}
-    data, filename = checklist_pdf(parts, tasks, request.language, request.utc_offset_minutes, app.version, FIT_TOLERANCE)
+        tolerance = session['fit_tolerance']
+    data, filename = checklist_pdf(parts, tasks, request.language, request.utc_offset_minutes, app.version, tolerance)
     return Response(data, media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="{filename}"', 'Cache-Control': 'no-store'})
 
 

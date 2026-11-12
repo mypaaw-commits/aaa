@@ -29,8 +29,8 @@ def box_stl(x):
 
 
 def check_workflow(base, offset, expected):
-    def request(path, data=None, content_type='application/json'):
-        req = Request(base + path, data=data, headers={'Content-Type': content_type})
+    def request(path, data=None, content_type='application/json', method=None):
+        req = Request(base + path, data=data, headers={'Content-Type': content_type}, method=method)
         with urlopen(req, timeout=30) as response:
             return response.read()
 
@@ -63,6 +63,16 @@ def check_workflow(base, offset, expected):
         for language in ('en', 'pl'):
             report = request(prefix + '/report', json.dumps({'language': language}).encode())
             assert report.startswith(b'%PDF-'), 'PDF generation or embedded fonts failed'
+        if expected == 'WITHIN_TOLERANCE':
+            settings = json.loads(request(prefix + '/settings', b'{"fit_tolerance":0}', method='PATCH'))
+            assert settings['fit_tolerance'] == 0 and all(task['stale'] for task in settings['tasks'])
+            request(prefix + '/analysis', b'{}')
+            for _ in range(300):
+                strict_result = json.loads(request(prefix + '/analysis'))
+                if strict_result['job']['state'] != 'running':
+                    break
+                time.sleep(.1)
+            assert strict_result['job']['state'] == 'done' and strict_result['relations'][0]['kind'] == 'INTERSECTION', strict_result
     finally:
         request(prefix + '/close', b'')
 

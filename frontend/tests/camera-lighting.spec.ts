@@ -19,6 +19,9 @@ async function changedPixels(page: import('@playwright/test').Page, a: Buffer, b
 }
 
 test('Six views and numpad shortcuts agree in both projections and preserve selection', async ({ page }) => {
+  // This exercises twelve camera views and many full canvas pixel comparisons
+  // on the software WebGL renderer used in CI.
+  test.setTimeout(90000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');

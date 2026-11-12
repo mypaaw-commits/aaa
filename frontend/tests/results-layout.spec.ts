@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loadExample } from './fixtures';
 
-const blue = 'rgb(98, 140, 168)';
+const blue = 'rgb(78, 131, 186)';
 
 test('Checks collapse by category and object; checklist is a separate tab', async ({ page }, testInfo) => {
   await page.goto('/');
@@ -70,7 +70,7 @@ test('The same selection blue is used for ordinary, multiple and inspected objec
   await page.getByRole('button', { name: 'Inspect pair: B.stl / C.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true] .part-swatch')).toHaveCount(2);
   for (const swatch of await page.locator('.object-row[aria-selected=true] .part-swatch').all()) await expect(swatch).toHaveCSS('background-color', blue);
-  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(148, 148, 148)');
+  await expect(a.locator('.part-swatch')).toHaveCSS('background-color', 'rgb(140, 150, 160)');
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
   await expect(b.locator('.part-swatch')).toHaveCSS('background-color', blue);
   await expect(page.locator('.selection-color-legend')).toHaveText('Not selectedSelected');

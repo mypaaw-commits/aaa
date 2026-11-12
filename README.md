@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.24
+# ModelCheck 3D — prototype 0.25
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -16,7 +16,7 @@ Download **[ModelCheck3D-Windows-x64.zip](https://github.com/mypaaw-commits/aaa/
 
 **No Python, Node.js, setup.cmd or dependency installation is needed.** The ZIP contains the runtime, native geometry libraries, built interface and PDF fonts. Keep `_internal` beside the executable. Windows 10/11 x64 is the target platform. The GitHub **Source code** archives are for development and are not the portable application.
 
-To update, close the previous copy, extract the new ZIP into a new folder and run the new executable. The header should show **0.24**. If an older copy still occupies its port, the launcher chooses a free port and opens the corresponding browser tab.
+To update, close the previous copy, extract the new ZIP into a new folder and run the new executable. The header should show **0.25**. If an older copy still occupies its port, the launcher chooses a free port and opens the corresponding browser tab.
 
 After downloading, the application works offline and listens only on the local computer. Models, analysis results and notes remain in the current session; close/restart removes the session. The portable package changes distribution and startup; the geometric analysis behavior is described below.
 
@@ -44,8 +44,8 @@ Colors have one meaning throughout the workspace:
 
 | Color | Meaning |
 | --- | --- |
-| Matte gray | An unselected object |
-| Muted blue | A selected object, from the list, viewport or a pair action |
+| Cool matte gray | An unselected object |
+| Clear matte blue | A selected object, from the list, viewport or a pair action |
 | Red | An intersection exceeding the fit margin |
 | Teal | Computed overlap verified within the 0.001 mm fit margin |
 | Purple | Full volume coincidence, in result labels and the analysis overlay |
@@ -73,7 +73,9 @@ The **Connections** tab lists informational links between directly connected par
 
 ![Grouped informational connections](docs/connections-grouped.png)
 
-**Fit margin: 0.001 mm.** Boolean subtraction can leave tiny overlapping fragments after STL float32 export. These are classified separately as **Within tolerance**, shown in teal when the intersection overlay is enabled, and counted separately from red intersections in both the summary and part checklist. The raw volume and overlap geometry are retained. A fit still requires manual review.
+**Fit margin: 0.001 mm by default, editable from 0 to 10 mm.** Change the field below Analyze and press Enter or leave it to apply. Decimal dots and Polish decimal commas are accepted. Zero disables the fit allowance. Changing the value clears the previous pair findings and marks checklist reviews out of date while preserving notes; Analyze computes new findings with the saved value. Repeating the same value leaves reviews and cached results intact. The PDF uses the session's saved margin.
+
+ Boolean subtraction can leave tiny overlapping fragments after STL float32 export. These are classified separately as **Within tolerance**, shown in teal when the intersection overlay is enabled, and counted separately from red intersections in both the summary and part checklist. The raw volume and overlap geometry are retained. A fit still requires manual review.
 
 Acceptance checks the entire computed overlap against the surface bands of **both** valid solids using eroded Manifold3D cores. Small volume alone is insufficient: deep thin intrusions, containment and full coincidence keep their intersection classification. A cheap volume/area test rejects obvious candidates but never accepts a fit. The erosion uses an inscribed geodesic sphere, so the check is conservative near the threshold and may retain an intersection there. Numerical failures remain Needs review. Smaller-source eroded cores are cached per part. For dense sources, an inconclusive certificate now produces Needs review instead of attempting the costly whole-source erosion. Source positions and geometry remain unchanged.
 
@@ -168,11 +170,29 @@ The viewport uses **Soft lighting** only: diffuse, balanced matte shading that f
 
 Ordinary selection and clicking a pair name do not move the camera. Pair framing and isolation explicitly change the view. Parts are stationary; prepare geometric variants in Blender. Inspection and camera framing do not transform STL meshes.
 
+## Viewport screenshots
+
+The camera icon beside the view buttons downloads the current 3D viewport.
+**PNG is the default**, with **JPEG** and **WebP** available in the adjacent
+format selector. PNG preserves the image without compression loss. The exported
+image includes the current projection, camera, visibility/isolation,
+transparency, floor and result highlights, without the surrounding application
+panels. Its resolution matches the viewport drawing buffer. Export waits for
+result overlays to finish loading and does not change the camera or selection.
+
+Parts use a cooler gray and a stronger selection blue. Intersection surfaces
+use a saturated red with shading and light edges; a faint X-ray layer identifies
+hidden overlap while the visible surface stays distinct. Verified fits remain
+teal and coincidence remains purple. The model geometry and result geometry are
+not simplified for this display.
+
+![Exported viewport with highlighted intersection](docs/viewport-export.png)
+
 ## Analysis performance
 
 Since 0.22, import reads the existing multipart spool directly, creates extra surface hierarchies only when needed, releases large validation scratch arrays, and streams STL exports in bounded chunks. Dense near-margin pairs use exact small solid witnesses and additional kernel directions. In 0.23, surface distance reuses Manifold's existing hierarchy, avoiding the extra FCL copies altogether. These optimizations preserve original coordinates and the same geometric tolerance. Version 0.23 does not run the costly whole-source erosion on sources with at least 50,000 faces: if the certificates cannot resolve the margin, the pair remains **Needs review**, never Clear or Within tolerance.
 
-The analysis speeds up the fit-margin test without simplifying or moving imported meshes. A conservative geometric certificate handles typical shallow STL/Boolean roundoff; smaller cases it cannot certify still use the original erosion test. The 0.001 mm margin is unchanged.
+The analysis speeds up the fit-margin test without simplifying or moving imported meshes. A conservative geometric certificate handles typical shallow STL/Boolean roundoff; smaller cases it cannot certify still use the original erosion test. The default margin is 0.001 mm; the editable session setting is used consistently in classification, caching and reports.
 
 Unchanged pairs reuse their geometry result across successive analyses, including intersection overlays. Importing a part computes only its new pairs. Deleting another part, visibility, selection, list ordering and manual reviews leave the pair geometry unchanged. Uncertain results are retried. Manual checklists still require explicit review, and model edits still make existing reviews out of date.
 
@@ -233,7 +253,7 @@ python scripts/build_portable.py
 python scripts/smoke_portable.py release/ModelCheck3D-Windows-x64.zip
 ```
 
-PyInstaller builds a directory distribution to avoid unpacking the runtime on every launch. `scripts/build_portable.py` includes fonts, the compiled frontend, Python license, dependency metadata/licenses and `BUILD-INFO.json`, then creates the ZIP and a SHA-256 checksum. `scripts/smoke_portable.py` extracts the actual ZIP into a directory with spaces, starts it from an unrelated working directory with Python/Node removed from PATH, checks the frontend and assets, imports real STL files, computes a native intersection and a .001 mm fit, downloads both STL representations and exports English and Polish PDFs.
+PyInstaller builds a directory distribution to avoid unpacking the runtime on every launch. `scripts/build_portable.py` includes fonts, the compiled frontend, Python license, dependency metadata/licenses and `BUILD-INFO.json`, then creates the ZIP and a SHA-256 checksum. `scripts/smoke_portable.py` extracts the actual ZIP into a directory with spaces, starts it from an unrelated working directory with Python/Node removed from PATH, checks the frontend and assets, imports real STL files, computes a native intersection and a .001 mm fit, downloads both STL representations, exports English and Polish PDFs, then changes the fit margin to zero and verifies reclassification.
 
 `.github/workflows/windows-portable.yml` builds and tests on Windows x64 when a `v*` tag is pushed. It checks that the tag matches the frontend version, then publishes the verified ZIP and checksum as a GitHub Release. A manual workflow run builds an artifact without publishing a release. Tagged releases must bump the application version first. Source archives are not substituted if the executable build fails.
 

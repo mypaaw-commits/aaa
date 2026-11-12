@@ -66,16 +66,16 @@ def test_cancel_stops_worker_before_unlocking_and_preserves_complete_results(mon
     previous = analyze(sid)
     tid = previous['tasks'][0]['id']
     client.patch(f'/api/sessions/{sid}/tasks/{tid}', json={'done': True, 'note': 'Keep this review'})
-    before = client.get(f'/api/sessions/{sid}/analysis').json()
     # Force a real worker run despite the immutable-pair cache.
-    monkeypatch.setattr(main, 'FIT_TOLERANCE', .002)
+    next(iter(main.sessions[sid]['relations'].values()))['kind'] = 'UNCERTAIN'
+    before = client.get(f'/api/sessions/{sid}/analysis').json()
     original = main.analyze_pair
     entered, release = threading.Event(), threading.Event()
 
-    def blocked(a, b):
+    def blocked(a, b, tolerance):
         entered.set()
         assert release.wait(3)
-        return original(a, b)
+        return original(a, b, tolerance)
 
     monkeypatch.setattr(main, 'analyze_pair', blocked)
     response = client.post(f'/api/sessions/{sid}/analysis', json={})
