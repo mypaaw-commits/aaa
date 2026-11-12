@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.23
+# ModelCheck 3D — prototype 0.24
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -6,20 +6,25 @@ A local STL assembly viewer for finding directly connected parts and inspecting 
 
 ![Expandable intersection results and a dedicated checklist tab](docs/modelcheck3d.png)
 
-## Run on Windows
+## Run on Windows — portable ZIP
 
-Requirements: **Python 3.12, 64-bit**, the `py` launcher, and **Node.js 22 or 24** with npm.
+Download **[ModelCheck3D-Windows-x64.zip](https://github.com/mypaaw-commits/aaa/releases/latest/download/ModelCheck3D-Windows-x64.zip)** from Releases.
 
-1. Download the source ZIP and extract it into a new folder.
-2. Run `setup.cmd`. The first installation needs an Internet connection.
-3. Run `start.cmd` and use the new browser tab it opens.
-4. Leave the server window open. Ctrl+C stops it.
+1. Extract the **complete ZIP** to a new folder.
+2. Double-click **ModelCheck3D.exe**. Your browser opens the application.
+3. Keep the program window open while working; close it when finished.
 
-The application header should show **0.23**. Stop the previous server before updating. If its port is still occupied, the launcher chooses an available port and prints the new address. An existing browser tab continues to show its original server.
+**No Python, Node.js, setup.cmd or dependency installation is needed.** The ZIP contains the runtime, native geometry libraries, built interface and PDF fonts. Keep `_internal` beside the executable. Windows 10/11 x64 is the target platform. The GitHub **Source code** archives are for development and are not the portable application.
 
-After installation, the application works offline, including fonts. It listens only on the local computer.
+To update, close the previous copy, extract the new ZIP into a new folder and run the new executable. The header should show **0.24**. If an older copy still occupies its port, the launcher chooses a free port and opens the corresponding browser tab.
 
-Manual PowerShell commands, from the repository root:
+After downloading, the application works offline and listens only on the local computer. Models, analysis results and notes remain in the current session; close/restart removes the session. The portable package changes distribution and startup; the geometric analysis behavior is described below.
+
+### Run from source
+
+For development, install **Python 3.12 x64** and **Node.js 22 or 24**, download the source ZIP, then run `setup.cmd` followed by `start.cmd`. These steps are unnecessary for the portable ZIP.
+
+Manual PowerShell commands from the repository root:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -28,8 +33,6 @@ npm ci --prefix frontend
 npm run build --prefix frontend
 .venv\Scripts\python.exe run.py
 ```
-
-The prototype is tested on Linux. The Windows launch scripts and dependency installation still need verification on a Windows computer.
 
 ## Workspace
 
@@ -216,3 +219,22 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
 Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, direct spooled imports, bounded STL streaming, reused native surface queries, analysis cancellation/limits, unified analysis, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+
+
+## Build and verify a portable release
+
+Build on the target operating system with 64-bit Python 3.12:
+
+```powershell
+python -m pip install -r packaging/requirements-build.txt
+npm ci --prefix frontend
+npm run build --prefix frontend
+python scripts/build_portable.py
+python scripts/smoke_portable.py release/ModelCheck3D-Windows-x64.zip
+```
+
+PyInstaller builds a directory distribution to avoid unpacking the runtime on every launch. `scripts/build_portable.py` includes fonts, the compiled frontend, Python license, dependency metadata/licenses and `BUILD-INFO.json`, then creates the ZIP and a SHA-256 checksum. `scripts/smoke_portable.py` extracts the actual ZIP into a directory with spaces, starts it from an unrelated working directory with Python/Node removed from PATH, checks the frontend and assets, imports real STL files, computes a native intersection and a .001 mm fit, downloads both STL representations and exports English and Polish PDFs.
+
+`.github/workflows/windows-portable.yml` builds and tests on Windows x64 when a `v*` tag is pushed. It checks that the tag matches the frontend version, then publishes the verified ZIP and checksum as a GitHub Release. A manual workflow run builds an artifact without publishing a release. Tagged releases must bump the application version first. Source archives are not substituted if the executable build fails.
+
+The same build/smoke scripts support Linux x64 for local packaging validation, using `ModelCheck3D-Linux-x64.zip`. A Linux build is not a Windows executable; the Windows release is built and tested by its Windows job.

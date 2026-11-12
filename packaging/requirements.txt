@@ -1,0 +1,24 @@
+# Runtime dependencies only, pinned to the versions used by the source build.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+charset-normalizer==3.5.2
+click==8.5.0
+fastapi==0.148.0
+h11==0.16.0
+idna==3.20
+manifold3d==3.5.4
+networkx==3.7
+numpy==2.5.4
+opentelemetry-api==1.45.1
+pillow==13.0.0
+pydantic==2.14.1
+pydantic_core==2.50.1
+python-multipart==0.0.32
+reportlab==5.0.1
+starlette==1.9.0
+trimesh==5.1.1
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.54.0
+colorama==0.4.6; sys_platform == 'win32'

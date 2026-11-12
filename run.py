@@ -25,17 +25,20 @@ def reserve_listener(port):
         raise
 
 
-if __name__ == '__main__':
+def main():
     import uvicorn
+    from backend.main import app
     parser = argparse.ArgumentParser(description='ModelCheck 3D — lokalny prototyp')
+    parser.add_argument('--version', action='version', version=f'ModelCheck 3D {app.version}')
     parser.add_argument('--port', type=int, default=8000)
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
     listener = reserve_listener(args.port)
     port = listener.getsockname()[1]
-    print(f'ModelCheck 3D: http://127.0.0.1:{port}', flush=True)
+    print(f'ModelCheck 3D {app.version}: http://127.0.0.1:{port}', flush=True)
     if port != args.port:
-        print('Poprzedni port jest zajety. Ta kopia aplikacji korzysta z nowego adresu.', flush=True)
+        print('The previous port is in use. This copy uses a different address.', flush=True)
+    print('Keep this window open while using the application. Close it to stop.', flush=True)
     if not args.no_browser:
         def open_browser():
             for _ in range(50):
@@ -48,6 +51,16 @@ if __name__ == '__main__':
                     time.sleep(.2)
         threading.Thread(target=open_browser, daemon=True).start()
     try:
-        uvicorn.Server(uvicorn.Config('backend.main:app', host='127.0.0.1', port=port)).run(sockets=[listener])
+        # Explicit implementations also work in a frozen executable: optional
+        # event-loop and WebSocket packages are not needed by this application.
+        config = uvicorn.Config(app, host='127.0.0.1', port=port,
+                                loop='asyncio', http='h11', ws='none', lifespan='on')
+        uvicorn.Server(config).run(sockets=[listener])
     finally:
         listener.close()
+
+
+if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()
+    main()

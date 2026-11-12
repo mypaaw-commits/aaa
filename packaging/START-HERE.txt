@@ -1,0 +1,31 @@
+ModelCheck 3D — Windows portable
+
+1. Extract the complete ZIP to a new folder.
+2. Double-click ModelCheck3D.exe.
+3. Your browser opens the application automatically.
+
+No Python, Node.js, setup.cmd or installation is needed.
+Keep the application window open. Close it when you finish.
+Keep the _internal folder next to ModelCheck3D.exe.
+
+To update: close the old copy, extract the new ZIP to a new folder,
+then run the new ModelCheck3D.exe.
+The app runs locally and works without an internet connection.
+Imported models, analysis and checklist notes are kept for the current session.
+
+----------------------------------------
+
+ModelCheck 3D — wersja przenosna dla Windows
+
+1. Wypakuj caly ZIP do nowego folderu.
+2. Kliknij dwa razy ModelCheck3D.exe.
+3. Aplikacja otworzy sie automatycznie w przegladarce.
+
+Nie instalujesz Pythona ani Node.js i nie uruchamiasz setup.cmd.
+Pozostaw okno programu otwarte. Zamknij je po zakonczeniu pracy.
+Folder _internal musi pozostac obok pliku ModelCheck3D.exe.
+
+Aktualizacja: zamknij stara wersje, wypakuj nowy ZIP do nowego folderu
+i uruchom nowy ModelCheck3D.exe.
+Program dziala lokalnie, bez polaczenia z internetem.
+Modele, analiza i notatki checklisty sa przechowywane w biezacej sesji.
