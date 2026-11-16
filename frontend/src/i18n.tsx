@@ -2,6 +2,18 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 const en = {
+  surfaceProgress: '{done} / {total} faces',
+  shiftEyes: 'Shift + click: show or hide all parts',
+  analysisScope: 'Analysis scope', allParts: 'All parts', visibleParts: 'Visible parts',
+  colourMap: 'Display', solidColours: 'Solid highlights', fitMap: 'Fit depth map', thicknessMap: 'Wall thickness',
+  fitSlider: 'Fit margin slider', thicknessSlider: 'Minimum thickness slider', measureThickness: 'Measure wall thickness',
+  minimumThickness: 'Minimum thickness', invalidThickness: 'Enter a minimum thickness from 0.01 to 10 mm.',
+  thicknessMethod: 'Measured at face centres along the surface normal, using the original mesh. Grey areas could not be measured.',
+  unknownGrey: 'Grey = not measured', measuredMinimum: 'Minimum', thinFaces: '{count} faces below minimum', unknownFaces: '{count} unmeasured',
+  allRelationships: 'All relationships', resultFilter: 'Filter results', partResults: 'Part results: {name}',
+  runMapsHint: 'Run Analyze to create the selected measurement map.',
+  analysisResults: 'Analysis', stage_fit_map: 'Measuring fit depth', stage_thickness: 'Measuring wall thickness',
+
   language: 'Language', import: 'Import STL', objects: 'Objects', objectList: 'Model objects',
   search: 'Search objects', searchPlaceholder: 'Search objects…', isolate: 'Isolate selection',
   showAll: 'Show all objects', selectAll: 'Select all', deselect: 'Clear selection', selected: '{count} selected',
@@ -60,6 +72,18 @@ const en = {
   reviewSaveFailed: 'Review changes could not be saved. Retry your edit before exporting.',
 };
 const pl: Record<keyof typeof en, string> = {
+  surfaceProgress: 'Ściany: {done} / {total}',
+  shiftEyes: 'Shift + klik: pokaż lub ukryj wszystkie części',
+  analysisScope: 'Zakres analizy', allParts: 'Wszystkie części', visibleParts: 'Widoczne części',
+  colourMap: 'Widok', solidColours: 'Jednolite podświetlenie', fitMap: 'Mapa dopasowania', thicknessMap: 'Grubość ścianek',
+  fitSlider: 'Suwak marginesu dopasowania', thicknessSlider: 'Suwak minimalnej grubości', measureThickness: 'Sprawdzaj grubość ścianek',
+  minimumThickness: 'Minimalna grubość', invalidThickness: 'Wpisz minimalną grubość od 0,01 do 10 mm.',
+  thicknessMethod: 'Pomiar w środkach trójkątów, prostopadle do powierzchni oryginalnej siatki. Szare miejsca nie zostały zmierzone.',
+  unknownGrey: 'Szary = brak pomiaru', measuredMinimum: 'Minimum', thinFaces: 'Poniżej minimum: {count} ścian', unknownFaces: 'Bez pomiaru: {count}',
+  allRelationships: 'Wszystkie powiązania', resultFilter: 'Filtr wyników', partResults: 'Wyniki części: {name}',
+  runMapsHint: 'Uruchom analizę, aby utworzyć wybraną mapę pomiarów.',
+  analysisResults: 'Analiza', stage_fit_map: 'Pomiar głębokości dopasowania', stage_thickness: 'Pomiar grubości ścianek',
+
   language: 'Język', import: 'Wczytaj STL', objects: 'Obiekty', objectList: 'Obiekty modelu',
   search: 'Szukaj obiektów', searchPlaceholder: 'Szukaj obiektów…', isolate: 'Izoluj zaznaczone',
   showAll: 'Pokaż wszystkie obiekty', selectAll: 'Zaznacz wszystkie', deselect: 'Odznacz wszystkie', selected: 'Zaznaczone: {count}',

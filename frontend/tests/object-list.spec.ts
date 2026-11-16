@@ -144,8 +144,8 @@ test('Explorer marquee: replace, Ctrl toggle, cancel and blank click preserve vi
   await expect(selected).toHaveCount(0);
   await expect(page.locator('.object-row[data-selection=idle]')).toHaveCount(3);
   // Eye controls must not select, activate or start a marquee.
-  await page.getByTitle('Hide B.stl', { exact: true }).click();
+  await page.getByRole('button', { name: 'Hide B.stl', exact: true }).click();
   await expect(selected).toHaveCount(0);
   await expect(page.locator('.selection-marquee')).toHaveCount(0);
-  await expect(page.getByTitle('Show B.stl', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show B.stl', exact: true })).toBeVisible();
 });

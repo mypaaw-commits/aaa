@@ -46,7 +46,7 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   expect(Buffer.compare(image, await page.locator('canvas').screenshot())).toBe(0);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await page.getByRole('button', { name: 'Within tolerance', exact: true }).click();
-  await page.getByRole('button', { name: 'Intersections of key.stl', exact: true }).click();
+  await page.getByRole('button', { name: 'Part results: key.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .pair-status.withinTolerance')).toHaveText('Within tolerance');
   await page.getByRole('button', { name: 'Inspect pair: key.stl / socket.stl', exact: true }).click();
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
@@ -75,7 +75,7 @@ test('Real intersections stay red alongside independent within-tolerance pairs',
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair · 1 within tolerance');
   await expect.poll(async () => (await viewPixels(page)).teal).toBeGreaterThan(20);
   await expect.poll(async () => (await viewPixels(page)).red).toBeGreaterThan(50);
-  await page.getByRole('button', { name: 'Intersections of C.stl', exact: true }).click();
+  await page.getByRole('button', { name: 'Part results: C.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .pair-status')).toHaveText('Intersection');
   await page.getByRole('button', { name: 'Inspect pair: C.stl / D.stl', exact: true }).click();
   await expect(page.locator('.fit-legend')).toHaveCount(0);

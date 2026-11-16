@@ -16,8 +16,9 @@ from backend.geometry import prepare, analyze_pair, CONNECTION_EPS, FIT_TOLERANC
 from backend.reports import checklist_pdf
 from backend.stl_stream import stl_chunks
 from backend.analysis_control import AnalysisCancelled, AnalysisControl, current_control
+from backend.surface_maps import preview_mesh, fit_map, thickness_map, thickness_summary, map_chunks
 
-app = FastAPI(title='ModelCheck 3D', version='0.25.0')
+app = FastAPI(title='ModelCheck 3D', version='0.26.0')
 executor = ThreadPoolExecutor(max_workers=1)
 sessions = {}
 lock = RLock()
@@ -26,11 +27,19 @@ LIMIT = 200 * 1024 * 1024
 
 class AnalysisRequest(BaseModel):
     check: Literal['ANALYSIS'] = 'ANALYSIS'
+    part_ids: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    fit_map: bool = False
+    thickness: bool = False
     model_config = ConfigDict(extra='forbid')
 
 
 class FitSettings(BaseModel):
     fit_tolerance: float = Field(ge=0, le=10, allow_inf_nan=False, strict=True)
+    model_config = ConfigDict(extra='forbid')
+
+
+class ThicknessSettings(BaseModel):
+    minimum: float = Field(ge=.01, le=10, allow_inf_nan=False, strict=True)
     model_config = ConfigDict(extra='forbid')
 
 
@@ -73,7 +82,8 @@ def add_part(session, mesh, name, size):
     pid = uuid4().hex
     meta = {'id': pid, 'name': name, 'size': size, 'faces': len(shape.mesh.faces),
             'solid': shape.solid, 'bounds': shape.mesh.bounds.tolist()}
-    session['parts'][pid] = {'meta': meta, 'shape': shape}
+    preview, error = preview_mesh(shape)
+    session['parts'][pid] = {'meta': meta, 'shape': shape, '_preview': preview, '_preview_error': error}
     invalidate_tasks(session)
     return meta
 
@@ -106,7 +116,7 @@ def create_session():
     sid = uuid4().hex
     with lock:
         sessions[sid] = {'parts': {}, 'relations': {}, 'tasks': {}, 'busy': False, 'job': None,
-                         'fit_tolerance': FIT_TOLERANCE}
+                         'fit_tolerance': FIT_TOLERANCE, 'minimum_thickness': .5, 'thickness_results': {}}
     return {'id': sid, 'fit_tolerance': FIT_TOLERANCE}
 
 
@@ -122,6 +132,20 @@ def update_fit_settings(sid: str, settings: FitSettings):
             session['job'] = None
             invalidate_tasks(session)
         return {'fit_tolerance': session['fit_tolerance'], 'tasks': list(session['tasks'].values())}
+
+
+@app.patch('/api/sessions/{sid}/thickness-settings')
+def update_thickness_settings(sid: str, settings: ThicknessSettings):
+    with lock:
+        session = session_for(sid); idle(session)
+        if session['minimum_thickness'] != settings.minimum:
+            session['minimum_thickness'] = settings.minimum
+            for pid, data in session['thickness_results'].items():
+                task = session['tasks'].get(f'INTERSECTIONS:{pid}')
+                if task is not None:
+                    task['thickness'] = thickness_summary(data, settings.minimum)
+                    task['done'] = False
+        return {'tasks': list(session['tasks'].values())}
 
 
 @app.delete('/api/sessions/{sid}')
@@ -200,6 +224,27 @@ def part_stl(sid: str, pid: str):
     return mesh_response(part['shape'].mesh)
 
 
+@app.get('/api/sessions/{sid}/parts/{pid}/preview')
+def part_preview(sid: str, pid: str):
+    part = session_for(sid)['parts'].get(pid)
+    if part is None:
+        raise HTTPException(404, 'Brak części.')
+    return mesh_response(part['_preview'])
+
+
+def map_response(data):
+    return StreamingResponse(map_chunks(data), media_type='application/octet-stream',
+                             headers={'Content-Length': str(8 + 48 * len(data['mesh'].faces))})
+
+
+@app.get('/api/sessions/{sid}/parts/{pid}/thickness')
+def part_thickness(sid: str, pid: str):
+    data = session_for(sid)['thickness_results'].get(pid)
+    if data is None:
+        raise HTTPException(404, 'Run thickness analysis first.')
+    return map_response(data)
+
+
 def mesh_response(mesh):
     return StreamingResponse(stl_chunks(mesh), media_type='application/octet-stream',
                              headers={'Content-Length': str(84 + 50 * len(mesh.faces))})
@@ -220,6 +265,7 @@ def remove_parts(session, ids):
     session['parts'] = {pid: part for pid, part in session['parts'].items() if pid not in ids}
     session['tasks'] = {tid: task for tid, task in session['tasks'].items() if task['part_id'] not in ids}
     session['relations'] = {key: rel for key, rel in session['relations'].items() if not ids.intersection(rel['part_ids'])}
+    session['thickness_results'] = {key: value for key, value in session['thickness_results'].items() if key not in ids}
     invalidate_tasks(session)
 
 
@@ -234,6 +280,7 @@ def delete_parts(sid: str, request: DeletePartsRequest):
 def run_analysis(session, ids, job):
     pairs = list(combinations(ids, 2))
     results = {}
+    measured_thickness = {}
     tolerance = job.get('fit_tolerance', session.get('fit_tolerance', FIT_TOLERANCE))
     control = job.setdefault('_control', AnalysisControl(lambda name: job.update(stage=name)))
     token = current_control.set(control)
@@ -253,10 +300,36 @@ def run_analysis(session, ids, job):
                 metadata, common = analyze_pair(shape_a, shape_b, tolerance)
                 results[rid] = {'id': rid, 'part_ids': [a, b], **metadata, '_mesh': common}
                 job['computed'] += 1
+            row = results[rid]
+            if job.get('fit_map') and row['_mesh'] is not None and not row.get('coincident') and not row.get('_fit_map'):
+                job['stage'] = 'fit_map'
+                row = dict(row)
+                row['_fit_map'] = fit_map(session['parts'][a]['shape'], session['parts'][b]['shape'], row['_mesh'])
+                row['map_ready'] = True
+                results[rid] = row
             job['completed'] = i + 1
+        if job.get('thickness'):
+            for index, pid in enumerate(ids):
+                control.check_cancelled()
+                job.update(stage='thickness', measured_parts=index, part_ids=[pid])
+                part = session['parts'][pid]
+                if '_thickness' not in part:
+                    data = thickness_map(part['shape'], part['shape'].mesh, 0,
+                                         lambda done, total: job.update(surface_done=done, surface_total=total))
+                    if data is not None:
+                        part['_thickness'] = data
+                if part.get('_thickness') is not None:
+                    measured_thickness[pid] = part['_thickness']
+                    job.update(surface_done=len(part['_thickness']['values']), surface_total=len(part['_thickness']['values']))
+            job['measured_parts'] = len(ids)
         control.check_cancelled()
         job['stage'] = 'results'
         session['relations'].update(results)
+        session['thickness_results'].update(measured_thickness)
+        session['_analysis_ids'] = list(ids)
+        for task in session['tasks'].values():
+            if task['part_id'] not in ids:
+                task.update(stale=True, done=False)
         tasks = {}
         for pid in ids:
             related = [row for row in results.values() if pid in row['part_ids']]
@@ -266,12 +339,22 @@ def run_analysis(session, ids, job):
             fits = sum(row['kind'] == 'WITHIN_TOLERANCE' for row in related)
             tid = f'INTERSECTIONS:{pid}'
             previous = session['tasks'].get(tid, {})
+            thickness_error = bool(job.get('thickness')) and pid not in measured_thickness
+            same_checks = (bool(previous.get('thickness')) == (pid in measured_thickness)
+                           and bool(previous.get('thickness_error')) == thickness_error)
             tasks[tid] = {'id': tid, 'part_id': pid, 'check': 'INTERSECTIONS',
-                          'done': previous.get('done', False) if not previous.get('stale') else False,
+                          'done': previous.get('done', False) if not previous.get('stale') and same_checks else False,
                           'note': previous.get('note', ''), 'stale': False,
                           'result': 'UNCERTAIN' if uncertain else 'INTERSECTION' if intersections else 'WITHIN_TOLERANCE' if fits else 'CLEAR',
                           'intersections': intersections, 'uncertain_pairs': uncertain,
                           'coincident_pairs': coincident, 'fit_pairs': fits}
+            if pid in measured_thickness:
+                tasks[tid]['thickness'] = thickness_summary(measured_thickness[pid], session['minimum_thickness'])
+                if tasks[tid]['thickness']['unknown_faces']:
+                    tasks[tid]['result'] = 'UNCERTAIN'
+            elif job.get('thickness'):
+                tasks[tid]['thickness_error'] = True
+                tasks[tid]['result'] = 'UNCERTAIN'
         session['tasks'].update(tasks)
         job['state'] = 'done'
     except AnalysisCancelled:
@@ -300,13 +383,16 @@ def cancel_analysis(sid: str):
 def start_analysis(sid: str, request: AnalysisRequest):
     with lock:
         session = session_for(sid); idle(session)
-        ids = sorted(session['parts'])
-        if len(ids) < 2:
+        ids = sorted(set(request.part_ids) if request.part_ids is not None else session['parts'])
+        if not set(ids).issubset(session['parts']):
+            raise HTTPException(404, 'Brak części.')
+        if len(ids) < (1 if request.thickness else 2):
             raise HTTPException(400, 'Wczytaj co najmniej dwie części.')
         session['busy'] = True
         job = {'id': uuid4().hex, 'check': request.check, 'state': 'running', 'completed': 0, 'total': len(ids) * (len(ids)-1)//2,
                'seconds': 0, '_start': time.monotonic(), 'error': None, 'fit_tolerance': session['fit_tolerance'],
                'reused': 0, 'computed': 0}
+        job.update(fit_map=request.fit_map, thickness=request.thickness, measured_parts=0, total_parts=len(ids))
         job['stage'] = 'bounds'
         job['_control'] = AnalysisControl(lambda name: job.update(stage=name))
         session['job'] = job
@@ -321,8 +407,9 @@ def analysis_state(sid: str):
     public_job = {k: v for k, v in job.items() if not k.startswith('_')} if job else None
     if job and job['state'] == 'running':
         public_job['seconds'] = round(time.monotonic() - job['_start'], 1)
+    scope = set(session.get('_analysis_ids', session['parts']))
     return {'job': public_job,
-            'relations': [{k: v for k, v in row.items() if not k.startswith('_')} for row in session['relations'].values()],
+            'relations': [{k: v for k, v in row.items() if not k.startswith('_')} for row in session['relations'].values() if set(row['part_ids']).issubset(scope)],
             'tasks': list(session['tasks'].values())}
 
 
@@ -345,6 +432,14 @@ def intersection(sid: str, rid: str):
     if row is None or row['_mesh'] is None:
         raise HTTPException(404, 'Brak geometrii intersekcji.')
     return mesh_response(row['_mesh'])
+
+
+@app.get('/api/sessions/{sid}/relations/{rid}/fit-map')
+def relation_fit_map(sid: str, rid: str):
+    row = session_for(sid)['relations'].get(rid)
+    if row is None or row.get('_fit_map') is None:
+        raise HTTPException(404, 'Run fit-map analysis first.')
+    return map_response(row['_fit_map'])
 
 
 @app.post('/api/sessions/{sid}/report')

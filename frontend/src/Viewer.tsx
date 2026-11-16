@@ -2,19 +2,18 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
-import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
-import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import type { Part, Relation } from './types';
 import { partColor, partColors } from './types';
 import { useI18n } from './i18n';
+import { readSurfaceMap, mapMaterial, mapScale } from './SurfaceMap';
+import type { ColourMode } from './SurfaceMap';
 
 export type CameraView = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'isometric';
 export type ImageFormat = 'png' | 'jpeg' | 'webp';
 export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void; capture: (format: ImageFormat) => Promise<Blob> };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
-type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
+type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; colourMode: ColourMode; fitTolerance: number; minimumThickness: number; thicknessIds: string[]; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
 type Engine = { scene: THREE.Scene; camera: Camera; controls: OrbitControls; renderer: THREE.WebGLRenderer; meshes: Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>>; overlays: THREE.Group; grid: THREE.GridHelper; fit: (ids?: string[]) => void; setView: (view: CameraView) => void; orbit: ViewerHandle['orbit']; setProjection: (mode: Projection) => void; invalidate: () => void; draw: () => void };
 // Z is up in imported STL coordinates. A small pole offset keeps OrbitControls stable.
 const viewDirections: Record<CameraView, [number, number, number]> = {
@@ -43,6 +42,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   const latest = useRef(props); latest.current = props;
   const fitNext = useRef(true);
   const overlayReady = useRef<Promise<boolean>>(Promise.resolve(true));
+  const cachedOverlays = useRef(new Map<string, THREE.Group>());
   useImperativeHandle(ref, () => ({
     fit: ids => engine.current?.fit(ids),
     view: view => engine.current?.setView(view),
@@ -84,7 +84,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
     catch { latest.current.onError('Nie można uruchomić WebGL. Włącz akcelerację sprzętową w przeglądarce.'); return; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = .9;
@@ -122,7 +122,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const overlays = new THREE.Group(); scene.add(overlays);
     const fit = (ids?: string[]) => {
       const box = new THREE.Box3();
-      meshes.forEach((mesh, id) => { if (ids ? ids.includes(id) : mesh.visible) box.expandByObject(mesh); });
+      latest.current.parts.forEach(part => { if (ids ? ids.includes(part.id) : part.visible && (!latest.current.isolated || latest.current.isolated.includes(part.id))) box.union(new THREE.Box3(new THREE.Vector3().fromArray(part.bounds[0]), new THREE.Vector3().fromArray(part.bounds[1]))); });
       if (box.isEmpty()) return;
       const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
       const max = Math.max(size.x, size.y, size.z, .01);
@@ -208,7 +208,8 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       const bounds = renderer.domElement.getBoundingClientRect();
       const pointer = new THREE.Vector2((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
       const ray = new THREE.Raycaster(); ray.setFromCamera(pointer, camera);
-      const hits = ray.intersectObjects([...meshes.values()].filter(mesh => mesh.visible));
+      const current = latest.current;
+      const hits = ray.intersectObjects([...meshes.values()].filter(mesh => { const part = current.parts.find(part => part.id === mesh.userData.id); return part?.visible && (!current.isolated || current.isolated.includes(part.id)); }));
       latest.current.onSelect(hits[0]?.object.userData.id ?? null, event.shiftKey || event.ctrlKey || event.metaKey);
     };
     const prevent = (event: Event) => event.preventDefault();
@@ -221,7 +222,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       renderer.domElement.removeEventListener('pointerdown', down, true);
       renderer.domElement.removeEventListener('pointerup', up);
       renderer.domElement.removeEventListener('contextmenu', prevent);
-      dispose(scene); renderer.dispose(); container.removeChild(renderer.domElement); engine.current = null;
+      dispose(scene); cachedOverlays.current.clear(); renderer.dispose(); container.removeChild(renderer.domElement); engine.current = null;
     };
   }, []);
 
@@ -259,7 +260,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       for (const part of props.parts) {
         if (e.meshes.has(part.id)) continue;
         try {
-          const response = await fetch(`/api/sessions/${props.session}/parts/${part.id}/stl`, { signal: abort.signal });
+          const response = await fetch(`/api/sessions/${props.session}/parts/${part.id}/preview`, { signal: abort.signal });
           if (!response.ok) throw new Error('Nie można pobrać geometrii.');
           const geometry = loader.parse(await response.arrayBuffer());
           if (cancelled) { geometry.dispose(); return; }
@@ -289,52 +290,95 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .2 : 1;
       mesh.material.depthWrite = !ghost; mesh.material.wireframe = false;
     }
+    updateOverlayVisibility();
     e.invalidate();
   }
   useEffect(() => { applyMaterials(); }, [props.parts, props.selected, props.isolated, props.transparent]);
 
+  function updateOverlayVisibility() {
+    const e = engine.current; if (!e) return;
+    const current = latest.current;
+    const visible = new Set(current.parts.filter(part => part.visible && (!current.isolated || current.isolated.includes(part.id))).map(part => part.id));
+    for (const group of cachedOverlays.current.values()) {
+      const row = current.relations.find(row => row.id === group.userData.relation);
+      const thickness = group.userData.thickness as string | undefined;
+      group.visible = thickness
+        ? current.colourMode === 'thickness' && current.thicknessIds.includes(thickness) && visible.has(thickness)
+        : !!row && current.intersections && current.colourMode !== 'thickness' && row.part_ids.every(id => visible.has(id)) && group.userData.mode === (current.colourMode === 'fit' && row.map_ready ? 'fit' : 'solid');
+      group.traverse(child => {
+        if (!(child instanceof THREE.Mesh)) return;
+        if (child.material instanceof THREE.ShaderMaterial) {
+          child.material.uniforms.scale.value = mapScale(thickness ? current.minimumThickness : current.fitTolerance);
+          if (thickness) {
+            child.material.uniforms.alpha.value = current.transparent ? .2 : 1;
+            child.material.transparent = current.transparent;
+            child.material.depthWrite = !current.transparent;
+          }
+        } else if (child.material instanceof THREE.MeshBasicMaterial && row) {
+          child.material.color.set(row.kind === 'WITHIN_TOLERANCE' ? partColors.fit : row.coincident ? partColors.coincident : partColors.intersection);
+        }
+      });
+    }
+    // Source geometry remains available for picking and framing. In thickness
+    // view its measured surface is drawn by the cached colour-map mesh.
+    for (const [id, mesh] of e.meshes) {
+      mesh.visible = visible.has(id) && !(current.colourMode === 'thickness' && current.thicknessIds.includes(id) && cachedOverlays.current.has(`${current.session}:thickness:${id}`));
+    }
+    e.invalidate();
+  }
+
+  const overlaySignature = props.relations.map(row => `${row.id}:${row.kind}:${!!row.map_ready}`).sort().join('|');
   useEffect(() => {
     const e = engine.current; if (!e) return;
-    let cancelled = false; const abort = new AbortController();
-    const clear = () => { [...e.overlays.children].forEach(child => { e.overlays.remove(child); dispose(child); }); e.invalidate(); };
-    clear();
-    const visible = new Set(props.parts.filter(part => part.visible && (!props.isolated || props.isolated.includes(part.id))).map(part => part.id));
+    let cancelled = false;
+    const abort = new AbortController();
     const load = async () => {
       let success = true;
-      for (const relation of props.relations) {
-        if (!props.intersections || !['INTERSECTION', 'WITHIN_TOLERANCE'].includes(relation.kind) || !relation.part_ids.every(id => visible.has(id))) continue;
-        try {
-          const response = await fetch(`/api/sessions/${props.session}/relations/${relation.id}/intersection`, { signal: abort.signal });
-          if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
-          const geometry = loader.parse(await response.arrayBuffer());
-          if (cancelled) { geometry.dispose(); return true; }
-          const color = relation.kind === 'WITHIN_TOLERANCE' ? partColors.fit : relation.coincident ? partColors.coincident : partColors.intersection;
-          // Faint X-ray context for hidden overlap; solid, shaded foreground
-          // for the visible surface. Both meshes share the original geometry.
-          const xray = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .18,
-            side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true }));
-          xray.renderOrder = 8; e.overlays.add(xray);
-          const material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .12,
-            roughness: 1, metalness: 0, transparent: true, opacity: .98, side: THREE.DoubleSide,
-            depthWrite: true, depthTest: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-            toneMapped: false, forceSinglePass: true });
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.renderOrder = 10; e.overlays.add(mesh);
-          const edges = new THREE.EdgesGeometry(geometry, 35);
-          const lineGeometry = new LineSegmentsGeometry().setPositions(edges.getAttribute('position').array as Float32Array);
-          edges.dispose();
-          const lineMaterial = new LineMaterial({ color: relation.kind === 'WITHIN_TOLERANCE' ? '#b9ffeb' : relation.coincident ? '#eee0ff' : '#fff0d9', linewidth: 2, depthTest: true, depthWrite: false,
-            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, transparent: true, opacity: 1, toneMapped: false });
-          const lines = new LineSegments2(lineGeometry, lineMaterial);
-          lines.renderOrder = 11; e.overlays.add(lines);
-          e.invalidate();
-        } catch (error) { if (!cancelled) { success = false; latest.current.onError(error instanceof Error ? error.message : String(error)); } }
+      const current = latest.current;
+      const desired = current.colourMode === 'thickness'
+        ? current.thicknessIds.map(id => ({ key: `${current.session}:thickness:${id}`, url: `/api/sessions/${current.session}/parts/${id}/thickness`, thickness: id, mode: 'thickness', relation: undefined as string | undefined, row: undefined as Relation | undefined }))
+        : current.relations.filter(row => ['INTERSECTION', 'WITHIN_TOLERANCE'].includes(row.kind)).map(row => {
+          const mode = current.colourMode === 'fit' && row.map_ready ? 'fit' : 'solid';
+          return { key: `${current.session}:${row.id}:${mode}`, url: `/api/sessions/${current.session}/relations/${row.id}/${mode === 'fit' ? 'fit-map' : 'intersection'}`, thickness: undefined as string | undefined, mode, relation: row.id, row };
+        });
+      const ids = new Set(current.parts.map(part => part.id));
+      for (const [key, group] of cachedOverlays.current) {
+        if ((group.userData.ids as string[]).some(id => !ids.has(id))) {
+          e.overlays.remove(group); dispose(group); cachedOverlays.current.delete(key);
+        }
       }
+      for (const item of desired) {
+        if (cachedOverlays.current.has(item.key)) continue;
+        // Solid overlays stay lazy until requested. Visibility and camera moves
+        // never enter this effect or refetch/rebuild any cached geometry.
+        if (item.mode !== 'thickness' && !current.intersections) continue;
+        try {
+          const response = await fetch(item.url, { signal: abort.signal });
+          if (!response.ok) throw new Error('Nie można pobrać obszaru przecięcia.');
+          const buffer = await response.arrayBuffer();
+          if (cancelled) return true;
+          const geometry = item.mode === 'solid' ? loader.parse(buffer) : readSurfaceMap(buffer);
+          const colour = item.row?.kind === 'WITHIN_TOLERANCE' ? partColors.fit : item.row?.coincident ? partColors.coincident : partColors.intersection;
+          const material = item.mode === 'solid'
+            ? new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: .94, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true })
+            : mapMaterial(item.thickness ? current.minimumThickness : current.fitTolerance, !!item.thickness);
+          const group = new THREE.Group();
+          group.userData = { relation: item.relation, thickness: item.thickness, mode: item.mode, ids: item.row?.part_ids ?? [item.thickness!] };
+          const mesh = new THREE.Mesh(geometry, material); mesh.renderOrder = 10; group.add(mesh);
+          cachedOverlays.current.set(item.key, group); e.overlays.add(group);
+          updateOverlayVisibility();
+        } catch (error) {
+          if (!cancelled) { success = false; latest.current.onError(error instanceof Error ? error.message : String(error)); }
+        }
+      }
+      updateOverlayVisibility();
       return success;
     };
     overlayReady.current = load();
-    return () => { cancelled = true; abort.abort(); clear(); };
-  }, [props.relations, props.parts.map(part => `${part.id}:${part.visible}`).sort().join(','), props.isolated, props.intersections, props.session]);
+    return () => { cancelled = true; abort.abort(); };
+  }, [overlaySignature, props.session, props.colourMode, props.thicknessIds.join('|'), props.intersections]);
+
+  useEffect(() => { updateOverlayVisibility(); }, [props.parts, props.isolated, props.transparent, props.selected, props.colourMode, props.minimumThickness, props.fitTolerance, props.thicknessIds]);
 
   return <div className="canvas-host" ref={host} aria-label={t('view3d')} />;
 });

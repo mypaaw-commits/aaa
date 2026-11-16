@@ -8,7 +8,7 @@ import type { Part } from './types';
 
 type Props = {
   parts: Part[]; selected: string[]; isolated: string[] | null;
-  onChange: (ids: string[]) => void; onVisibility: (part: Part) => void;
+  onChange: (ids: string[]) => void; onVisibility: (part: Part, all?: boolean) => void;
   onMenu: (menu: ObjectMenuState) => void; nameSuffix: (part: Part) => string;
   onDelete: (ids: string[]) => void;
   onReorder: (id: string, target: string, before: boolean) => void;
@@ -160,7 +160,7 @@ export function ObjectList({ parts, selected, isolated, onChange, onVisibility, 
           <span className="part-swatch" style={{ background: partColor(part.id, selected) }} /><span title={part.name}>{part.name}{nameSuffix(part)}</span>
           {!part.solid && <span className="warning-text" title={t('meshWarning')}>!</span>}
         </button>
-        <button className="icon-button visibility-button" title={t(visible ? 'hide' : 'show', { name: part.name })} onClick={() => onVisibility(part)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
+        <button className="icon-button visibility-button" aria-label={t(visible ? 'hide' : 'show', { name: part.name })} title={t(visible ? 'hide' : 'show', { name: part.name }) + ' · ' + t('shiftEyes')} onClick={event => onVisibility(part, event.shiftKey)}>{visible ? <Eye size={18} /> : <EyeOff size={18} />}</button>
       </div>;
     })}
     {marquee && <div className="selection-marquee" style={marquee} />}

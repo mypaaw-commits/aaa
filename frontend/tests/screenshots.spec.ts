@@ -9,7 +9,7 @@ test('Camera saves the current 3D image as PNG by default, JPEG or WebP, with re
   await loadExample(page);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair');
-  await page.getByRole('button', { name: 'Intersections of B.stl', exact: true }).click();
+  await page.getByRole('button', { name: 'Part results: B.stl', exact: true }).click();
   await page.getByRole('button', { name: 'Inspect pair: B.stl / C.stl', exact: true }).click();
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
   const format = page.getByRole('combobox', { name: 'Image format', exact: true });

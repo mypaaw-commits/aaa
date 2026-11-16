@@ -8,7 +8,7 @@ test('PDF download waits for the final note and includes hidden parts in manual 
   await page.locator('.object-row').filter({ hasText: 'C.stl' }).locator('.object-select').focus();
   await page.keyboard.press('Alt+ArrowUp');
   await page.keyboard.press('Alt+ArrowUp');
-  await page.getByTitle('Hide C.stl', { exact: true }).click();
+  await page.getByRole('button', { name: 'Hide C.stl', exact: true }).click();
   const order = await page.locator('.object-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-id')));
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();

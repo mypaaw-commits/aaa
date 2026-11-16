@@ -50,7 +50,8 @@ test('A computation limit is explicit in the results and checklist, never report
   });
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-warning')).toHaveText('1 pair needs manual verification');
-  const group = page.locator('.category-uncertain .connection-group-toggle').first();
+  await page.getByRole('button', { name: 'Needs review', exact: true }).click();
+  const group = page.locator('#checks-panel .connection-group-toggle').first();
   await group.click();
   await expect(page.locator('.pair-explanation:visible')).toContainText('Automatic verification incomplete');
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();

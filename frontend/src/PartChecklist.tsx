@@ -16,7 +16,7 @@ function Notes({ task, name, disabled, onReview }: { task: CheckTask; name: stri
 }
 
 export function PartChecklist({ parts, tasks, busy, onReview, name, exporting, onExport }: Props) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [noteId, setNoteId] = useState<string | null>(null);
   const done = tasks.filter(task => task.done && !task.stale).length;
   return (
@@ -31,6 +31,7 @@ export function PartChecklist({ parts, tasks, busy, onReview, name, exporting, o
             return <section className="review-item" key={part.id}><div className={`review-row ${task?.done && !task.stale ? 'reviewed' : ''}`} data-part-id={part.id}>
               {task ? <input type="checkbox" aria-label={t('reviewPart', { name: name(part) })} checked={task.done && !task.stale} disabled={busy || task.stale} onChange={event => onReview(task, event.target.checked, task.note)} /> : <span className="pending-check" aria-hidden="true">—</span>}
               <div className="review-object"><strong title={name(part)}>{name(part)}</strong><span className={`review-status ${key} ${task?.coincident_pairs ? 'has-coincident' : ''}`} title={task?.stale ? t('staleTip') : task?.result === 'UNCERTAIN' ? t('unclearCount', { count: task.uncertain_pairs }) : undefined}>{key === 'uncertain' || key === 'stale' ? <TriangleAlert size={12} /> : key === 'clear' ? <CircleCheck size={12} /> : key === 'withinTolerance' ? <Ruler size={12} /> : task?.coincident_pairs ? <Copy size={12} /> : task?.intersections ? <ScanLine size={12} /> : null}{task && !task.stale && task.result !== 'UNCERTAIN' && task.coincident_pairs === task.intersections && task.coincident_pairs ? t('coincident') : t(key, { count: task?.intersections ?? 0 })}{task && !task.stale && task.coincident_pairs > 0 && task.coincident_pairs < task.intersections && ` · ${t('coincidentCount', { count: task.coincident_pairs })}`}{task && !task.stale && task.fit_pairs > 0 && task.intersections > 0 && ` · ${t('withinToleranceCount', { count: task.fit_pairs })}`}</span></div>
+              {task?.thickness && !task.stale && <span className={task.thickness.thin_faces ? 'wall-badge thin' : 'wall-badge'}>{t('measuredMinimum')}: {task.thickness.minimum?.toLocaleString(language, { maximumFractionDigits: 4 }) ?? '—'} mm · {t('thinFaces', { count: task.thickness.thin_faces })}</span>}
               {task && <button className={`icon-button note-button ${task.note ? 'has-note' : ''}`} aria-pressed={noteId === task.id} title={t('noteFor', { name: name(part) })} aria-expanded={noteId === task.id} onClick={() => setNoteId(noteId === task.id ? null : task.id)}><MessageSquare size={15} /></button>}
             </div>{task && noteId === task.id && <Notes task={task} name={name(part)} disabled={busy} onReview={onReview} />}</section>;
           })}

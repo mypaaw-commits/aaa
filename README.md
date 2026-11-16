@@ -1,4 +1,4 @@
-# ModelCheck 3D — prototype 0.25
+# ModelCheck 3D — prototype 0.26
 
 A local STL assembly viewer for finding directly connected parts and inspecting intersections. The interface defaults to **English**, with a **Polski** option in the top bar. Changing language keeps the current model, selection, results and notes. The language preference is stored in the browser.
 
@@ -16,7 +16,7 @@ Download **[ModelCheck3D-Windows-x64.zip](https://github.com/mypaaw-commits/aaa/
 
 **No Python, Node.js, setup.cmd or dependency installation is needed.** The ZIP contains the runtime, native geometry libraries, built interface and PDF fonts. Keep `_internal` beside the executable. Windows 10/11 x64 is the target platform. The GitHub **Source code** archives are for development and are not the portable application.
 
-To update, close the previous copy, extract the new ZIP into a new folder and run the new executable. The header should show **0.25**. If an older copy still occupies its port, the launcher chooses a free port and opens the corresponding browser tab.
+To update, close the previous copy, extract the new ZIP into a new folder and run the new executable. The header should show **0.26**. If an older copy still occupies its port, the launcher chooses a free port and opens the corresponding browser tab.
 
 After downloading, the application works offline and listens only on the local computer. Models, analysis results and notes remain in the current session; close/restart removes the session. The portable package changes distribution and startup; the geometric analysis behavior is described below.
 
@@ -36,11 +36,11 @@ npm run build --prefix frontend
 
 ## Workspace
 
-- **Objects, left:** filenames and visibility controls. The bottom toolbar contains Search, Select all, Clear selection, Isolate selection and Show all. Search opens a small field above the toolbar. Hover an icon for its name.
+- **Objects, left:** analysis controls above filenames and visibility controls. The bottom toolbar contains Search, Select all, Clear selection, Isolate selection and Show all. Search opens a small field above the toolbar. Hover an icon for its name.
 - **3D view, center:** import STL files, orbit the camera and show intersection geometry. Import preserves coordinates and scale: 1 STL unit = 1 mm.
-- **Results, right:** Connections, Checks and Part checklist tabs. Selecting a pair highlights both objects; expanding groups or switching tabs leaves selection and camera unchanged.
+- **Results, right:** Analysis combines connections and check results; Part checklist holds manual reviews and PDF export. Selecting a pair highlights both objects; expanding groups or switching tabs leaves selection and camera unchanged.
 
-Colors have one meaning throughout the workspace:
+In the default **Solid highlights** display, colors have one meaning throughout the workspace:
 
 | Color | Meaning |
 | --- | --- |
@@ -56,16 +56,14 @@ Selection never changes to a second color for a pair or a coincident object. The
 
 ## Connections and intersections
 
-**Analyze** runs one complete analysis of all imported parts, including hidden parts: direct connections, intersections, fits within 0.001 mm, coincidence and uncertain results. It refreshes the part checklist, opens Checks and enables the intersection overlay. Connections remain informational; manual review checkboxes remain unchecked until the user completes them.
+**Analyze** calculates direct connections, intersections, fits within the selected margin, coincidence and uncertain results in one operation. **All parts**, the default scope, includes hidden parts. Choose **Visible parts** to check only currently visible parts, respecting isolation; this scope is captured when Analyze starts. Optional fit-depth and wall-thickness maps are computed during this same operation. Analyze opens Analysis and enables the intersection overlay; manual review remains explicit.
 
-The **Connections** tab lists informational links between directly connected parts. Connections lists every imported object as a collapsed group, including objects with no links. Expand an object to see only the parts linked to it; opening another group closes the previous one. Expanding or closing a group leaves the 3D selection unchanged. Connected, Within tolerance, Intersection, Needs review and Coincident have different icons and visible labels. Click a linked part to select and highlight both objects without moving the camera. **Inspect** is the single action on each pair: it selects, isolates and frames both objects. The pair name only selects, without moving the camera. Back to full model restores the view.
+There are two tabs on the right:
 
-![Selected pair with matching object colors and a single Inspect action](docs/selected-pair.png)
+- **Analysis:** every imported object has one expandable group containing its linked parts. Filters show all relationships, intersections, connections, fits or uncertain findings, with unique pair counts. Intersections appear first. Different icons and labels distinguish each result. Click a linked part to highlight both objects; **Inspect** selects, isolates and frames the pair. Expanding groups or filtering leaves selection and camera unchanged. Wall-thickness rows show the measured minimum and thin/unmeasured face counts; click to isolate that part and show its map.
+- **Part checklist:** one compact row per imported object, including hidden and unanalysed parts, with analysis status, a manual review checkbox and optional notes. Checks outside the latest run are out of date. Clear results are never marked reviewed automatically. The remaining count and Export PDF stay visible while scrolling.
 
-**Analyze** also creates or refreshes a review task for every imported object. Results and reviews now have separate tabs:
-
-- **Checks:** separate collapsible sections for Intersections, Needs review and Within tolerance. Actual intersections and uncertain results are shown first. Within tolerance starts collapsed and has its own count. Expand an object to see its related pairs, then Inspect to isolate and frame one. Each section counts pairs once. Expanding a group leaves selection, camera and manual review unchanged.
-- **Part checklist, its own tab:** one compact row per imported object, with its result, manual review checkbox and optional notes. Results can be Clear, Within tolerance, an intersection count, Needs review, or Out of date. Clear results are never checked automatically.
+![Selected pair and a single Inspect action](docs/selected-pair.png)
 
 **Coincident** identifies two valid solids that occupy the same volume. It is shown in purple in the pair list, part results and intersection overlay. Bounds only identify candidates: both Boolean differences must be empty. Different triangulations of the same solid are accepted; close copies, containment and matching bounds alone are insufficient. This remains an intersection requiring manual review.
 
@@ -73,7 +71,7 @@ The **Connections** tab lists informational links between directly connected par
 
 ![Grouped informational connections](docs/connections-grouped.png)
 
-**Fit margin: 0.001 mm by default, editable from 0 to 10 mm.** Change the field below Analyze and press Enter or leave it to apply. Decimal dots and Polish decimal commas are accepted. Zero disables the fit allowance. Changing the value clears the previous pair findings and marks checklist reviews out of date while preserving notes; Analyze computes new findings with the saved value. Repeating the same value leaves reviews and cached results intact. The PDF uses the session's saved margin.
+**Fit margin: 0.001 mm by default, editable from 0 to 10 mm.** Use the field or slider below Analyze. Press Enter, leave the field or release the slider to apply. Decimal dots and Polish decimal commas are accepted. Zero disables the fit allowance. Changing the value clears the previous pair findings and marks checklist reviews out of date while preserving notes; Analyze computes new findings with the saved value. Repeating the same value leaves reviews and cached results intact. The PDF uses the session's saved margin.
 
  Boolean subtraction can leave tiny overlapping fragments after STL float32 export. These are classified separately as **Within tolerance**, shown in teal when the intersection overlay is enabled, and counted separately from red intersections in both the summary and part checklist. The raw volume and overlap geometry are retained. A fit still requires manual review.
 
@@ -85,19 +83,28 @@ White contact-area overlays and their switch remain removed. Finding connections
 
 **Transparency** above the 3D view independently toggles object opacity. It works before analysis and remains separate from the intersection overlay; running a check does not turn transparency on.
 
-The Checks and Part checklist tabs each use the full height of the results panel. The checklist currently contains intersection reviews; other check types will be added later. Notes open inline under their object using the speech-bubble icon. The remaining count and Export PDF button stay at the bottom while the list scrolls.
+One manual review per part covers the checks run for that part, including optional thickness. Rerunning the same checks preserves reviews and notes. Adding or removing the thickness check clears the affected reviews. Adding or deleting an object marks existing tasks Out of date until the next analysis, preserving notes. Ordinary selection never changes the analysis scope; visibility affects it only when **Visible parts** is explicitly selected.
 
 ![Part checklist in a separate tab](docs/part-checklist.png)
 
-![Inspect a single intersecting pair](docs/intersection-closeup.png)
+## Rainbow measurements and wall thickness
 
-Both analysis commands always check **all imported objects, including hidden ones**. Selection and isolation change the view only. You can run the intersection check directly; it also calculates connections.
+Choose a mode in **Display**, then click **Analyze** to build its measurements. Returning to a computed map, orbiting, selecting, hiding objects or filtering results reuses the map. The legend shows millimetres; measurement colors are separate from blue object selection.
 
-Rerunning a check on the same model preserves manual reviews and notes. Adding or deleting an object marks existing tasks as Out of date, clears their review checkmarks and disables review until the check is rerun. Notes remain. New objects get tasks after the next check.
+- **Fit depth map:** samples the computed overlap boundary. Each vertex records the larger of its exact nearest-triangle distances to the two original source surfaces. Coarse overlap triangles are refined on their existing planes before sampling. Interpolated blue → cyan → green → yellow → red indicates increasing depth; green is the fit margin, red is twice the margin or greater. With a zero margin, the legend uses a 0–0.001 mm display range. The map does not replace the conservative solid fit classification.
+- **Wall thickness map:** enable **Measure wall thickness**, or select this display mode, and Analyze. Rays from original triangle centres run inward along the local normal to the first exiting surface. Red → yellow → green → cyan → blue indicates increasing thickness; green is the selected minimum, blue is at least twice it. Unmeasured faces are grey and reported as Needs review. One part is sufficient for this check.
+
+**Minimum thickness** accepts 0.01–10 mm, default 0.5 mm. The field and slider recolor cached measurements and update thin-face counts without more rays or pair analysis. A changed threshold clears manual review checkmarks for measured parts and preserves notes. The PDF includes the measured minimum, thin-face count, threshold and unmeasured count.
+
+Thickness is a sampled normal-direction measurement, not a certified global minimum wall thickness. Results depend on tessellation and surface normals. Open/invalid solids have no invented measurement and remain Needs review.
+
+![Measured fit depth with a millimetre rainbow legend](docs/fit-rainbow.png)
+
+![Wall-thickness map and adjustable minimum](docs/thickness-rainbow.png)
 
 ## Export a review checklist
 
-Open **Part checklist** and click **Export PDF**. The file downloads directly, in the current interface language (English or Polish). It includes every imported part, including hidden parts, in the current object order, with analysis results, manual review state and notes. It also records the generation time with the browser UTC offset, application version, analysis currency and 0.001 mm fit margin.
+Open **Part checklist** and click **Export PDF**. The file downloads directly, in the current interface language (English or Polish). It includes every imported part, including hidden parts, in the current object order, with analysis results, manual review state and notes. It also records the generation time with the browser UTC offset, application version, analysis currency and the session's fit margin.
 
 The PDF explicitly labels the manual review **complete** or **incomplete**. Unrun, missing and out-of-date checks remain pending; stale numerical results are not presented as current. A completed manual review is recorded separately from analysis findings, so red intersections and Needs review results remain visible in a completed checklist. Other check types will be added later.
 
@@ -145,6 +152,7 @@ The rectangle scrolls the list automatically near its top and bottom edges. Esca
 | Click a mesh | Select one object |
 | Shift / Ctrl + click a mesh | Add or remove an object |
 | Eye icon | Hide or show an object |
+| Shift + eye icon | Show all if any part is hidden or isolated; click again to hide all |
 | Isolate selection | Show and frame selected objects |
 | Show all / Back to full model | Restore and frame all objects |
 | Frame all visible / double click in 3D | Frame visible objects |
@@ -180,15 +188,16 @@ transparency, floor and result highlights, without the surrounding application
 panels. Its resolution matches the viewport drawing buffer. Export waits for
 result overlays to finish loading and does not change the camera or selection.
 
-Parts use a cooler gray and a stronger selection blue. Intersection surfaces
-use a saturated red with shading and light edges; a faint X-ray layer identifies
-hidden overlap while the visible surface stays distinct. Verified fits remain
-teal and coincidence remains purple. The model geometry and result geometry are
-not simplified for this display.
+Parts use a cooler gray and a stronger selection blue. Solid intersections use one red overlay pass, including hidden overlap. Verified fits remain teal and coincidence remains purple. Screenshots include the selected rainbow map. Analysis retains the original mesh; large source meshes use a lighter viewport preview as described below.
 
 ![Exported viewport with highlighted intersection](docs/viewport-export.png)
 
 ## Analysis performance
+
+Version 0.26 caches ready-to-draw overlays and measurement maps. Camera moves, transparency, selection, isolation and visibility change display state only: no analysis POST, repeated map downloads or edge reconstruction. Solid overlays use one surface pass instead of multiple surface/edge passes. Idle scenes do not continuously redraw; camera movement still needs GPU rendering.
+
+At import, valid solids with at least 100,000 faces receive a separate Manifold preview simplified with a 0.001 mm tolerance. Pair analysis, thickness rays and source STL export retain the original full-resolution mesh. A generated radius-4 mm sphere went from 327,680 to 81,048 preview faces in 0.18 s on the test host, excluding preparation. This is a display optimization, not a frame-rate guarantee for arbitrary 100–200 MB files. Optional maps add first-analysis cost and memory use; threshold changes reuse measured arrays.
+
 
 Since 0.22, import reads the existing multipart spool directly, creates extra surface hierarchies only when needed, releases large validation scratch arrays, and streams STL exports in bounded chunks. Dense near-margin pairs use exact small solid witnesses and additional kernel directions. In 0.23, surface distance reuses Manifold's existing hierarchy, avoiding the extra FCL copies altogether. These optimizations preserve original coordinates and the same geometric tolerance. Version 0.23 does not run the costly whole-source erosion on sources with at least 50,000 faces: if the certificates cannot resolve the margin, the pair remains **Needs review**, never Clear or Within tolerance.
 
@@ -216,11 +225,11 @@ Version 0.23 also reduced the surface-contact analysis of two generated 125 MiB 
 - Import limit: **200 MiB per STL**, up to **100 objects** per session. Binary STL at this limit contains about 4.19 million triangles. Generated STL files of 131,072,084 and 205,845,284 bytes were imported and analyzed together through the API (about 28 s cold, under 0.01 s reused on the test host). Browser rendering time for those large files has not been measured. Large meshes require several GB of RAM; available memory and GPU resources still limit a practical session.
 - Geometry operations run in the background. The running analysis shows its actual stage and elapsed time and offers **Stop analysis**. Cancellation is cooperative; the UI remains busy until the worker actually stops. A cancelled run preserves the previous complete findings and reviews. Native Boolean evaluation receives a cancellation context. A 90 s pair budget and 45 s fit-verification budget request cancellation; these are not hard wall-clock guarantees for native calls; a stop is not a forced process termination. Computation limits produce **Needs review**, with an explanation in Checks and a corresponding uncertain result in the checklist/PDF.
 - **No project saving yet.** Refreshing starts a new session; restarting the server removes session data. Browser language preference is separate and persists locally. Session cleanup on tab closure is best effort.
-- Future work: through-gaps, wall thickness, additional checks and project persistence.
+- Future work: through-gaps, folder import/organization, additional checks and project persistence.
 
 ## Development and verification
 
-Python + FastAPI + Trimesh + Manifold3D; React + TypeScript + Three.js.
+Python + FastAPI + Trimesh + Manifold3D + Embree; React + TypeScript + Three.js.
 
 ```bash
 python3.12 -m venv .venv
@@ -238,7 +247,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e --prefix frontend
 
 For frontend development, run `npm run dev --prefix frontend`; Vite proxies `/api` to port 8000. If Chromium is not installed, run `npx playwright install chromium` from `frontend`, and omit `CHROMIUM_PATH` when using Playwright's managed browser.
 
-Tests cover the separate checklist tab, expandable check categories and objects, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, direct spooled imports, bounded STL streaming, reused native surface queries, analysis cancellation/limits, unified analysis, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
+Tests cover the merged analysis panel, separate checklist, expandable objects, rainbow fit depth, normal wall thickness, cached threshold changes, Shift-eye visibility, explicit visible-only scope, many-part viewport cache reuse, consistent selection colors, dense fit certificates and exact fallback, cached pair reuse and invalidation, the 0.001 mm fit boundary, rotated and reversed pairs, Boolean sphere/socket roundoff, large shallow overlaps, deep needles, mixed fit/intersection results, manual reviews, PDF downloads and save ordering, complete/incomplete/stale PDF reports, Polish text and multipage notes, informational connections that leave the 3D image unchanged, fitted socket intersections, geometry, direct spooled imports, bounded STL streaming, reused native surface queries, analysis cancellation/limits, unified analysis, imports, selection/ranges, rectangle scrolling, manual reordering, six-direction camera and numpad controls in both projections, editable-field shortcuts, Soft lighting, floor position through framing and model edits, atomic batch deletion, imports queued during analysis and upload, visibility, independent reviews and notes, stale results, context-menu deletion and EN/PL switching and persistence.
 
 
 ## Build and verify a portable release
@@ -253,7 +262,7 @@ python scripts/build_portable.py
 python scripts/smoke_portable.py release/ModelCheck3D-Windows-x64.zip
 ```
 
-PyInstaller builds a directory distribution to avoid unpacking the runtime on every launch. `scripts/build_portable.py` includes fonts, the compiled frontend, Python license, dependency metadata/licenses and `BUILD-INFO.json`, then creates the ZIP and a SHA-256 checksum. `scripts/smoke_portable.py` extracts the actual ZIP into a directory with spaces, starts it from an unrelated working directory with Python/Node removed from PATH, checks the frontend and assets, imports real STL files, computes a native intersection and a .001 mm fit, downloads both STL representations, exports English and Polish PDFs, then changes the fit margin to zero and verifies reclassification.
+PyInstaller builds a directory distribution to avoid unpacking the runtime on every launch. `scripts/build_portable.py` includes fonts, the compiled frontend, Python license, dependency metadata/licenses and `BUILD-INFO.json`, then creates the ZIP and a SHA-256 checksum. `scripts/smoke_portable.py` extracts the actual ZIP into a directory with spaces, starts it from an unrelated working directory with Python/Node removed from PATH, checks the frontend and assets, imports real STL files, computes a native intersection and a .001 mm fit, downloads both STL representations, validates binary rainbow fit/thickness maps and cached threshold changes, exports English and Polish PDFs, then changes the fit margin to zero and verifies reclassification.
 
 `.github/workflows/windows-portable.yml` builds and tests on Windows x64 when a `v*` tag is pushed. It checks that the tag matches the frontend version, then publishes the verified ZIP and checksum as a GitHub Release. A manual workflow run builds an artifact without publishing a release. Tagged releases must bump the application version first. Source archives are not substituted if the executable build fails.
 

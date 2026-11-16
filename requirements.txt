@@ -32,3 +32,4 @@ reportlab==5.0.1
 pillow==13.0.0
 charset-normalizer==3.5.2
 pypdf==6.12.0
+embreex==4.4.0.post1

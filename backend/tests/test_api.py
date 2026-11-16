@@ -102,7 +102,7 @@ def test_invalid_selection_and_removed_analysis_setting():
     sid = session()
     assert client.post(f'/api/sessions/{sid}/analysis', json={}).status_code == 400
     assert client.post(f'/api/sessions/{sid}/analysis', json={'gap': -1}).status_code == 422
-    assert client.post(f'/api/sessions/{sid}/analysis', json={'part_ids': ['unknown', 'other']}).status_code == 422
+    assert client.post(f'/api/sessions/{sid}/analysis', json={'part_ids': ['unknown', 'other']}).status_code == 404
     assert client.get('/api/sessions/missing/analysis').status_code == 404
     assert client.post(f'/api/sessions/{sid}/analysis', json={'check': 'UNKNOWN'}).status_code == 422
     assert client.patch(f'/api/sessions/{sid}/tasks/missing', json={'done': True}).status_code == 404

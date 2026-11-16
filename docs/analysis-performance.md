@@ -208,3 +208,56 @@ preservation of prior reviews and abandoned-session cancellation. Browser tests
 cover stage/time display, live language changes, cancellation and explicit
 manual-verification results. Large browser rendering and Windows performance
 remain unmeasured.
+
+
+## Cached viewport and surface maps in 0.26
+
+The browser now retains ready-to-draw geometries for intersection overlays,
+fit-depth maps and wall-thickness maps. Changing the camera, visibility,
+isolation, transparency, object selection or result filters does not send an
+analysis POST or reload the map. Solid overlays use a single surface pass;
+there is no second X-ray mesh or generated edge mesh per pair. Rendering remains
+necessary when the camera moves, and large overlays can still exceed GPU limits.
+A browser regression loads 16 parts and 15 intersections, then checks that orbit,
+eye toggles and switching the overlay off/on make no additional geometry requests.
+This verifies reuse, not a frame-rate promise for production-sized files.
+
+At import, valid meshes of at least 100,000 faces receive a separate Manifold
+preview using a 0.001 mm simplification tolerance. Original part meshes, pair
+analysis, thickness measurements and source STL exports retain full resolution.
+Result overlays themselves retain their computed resolution.
+
+Wall thickness uses Embree batch ray queries against the original triangles.
+Each face centre casts inward along its normal. The returned triangle is used
+for a double-precision line/plane distance, and ambiguous self/grazing hits are
+left unknown. Query coordinates are translated and normalized only inside the
+ray engine; original coordinates are retained. The temporary BVH is released
+after measurement. Values are cached as float32 millimetres; changing the
+minimum only reclassifies these arrays and changes shader uniforms. This is a
+sampled normal-direction measurement, not a certified global minimum thickness.
+Embree's float32 ray precision also depends on overall model size; very small
+features relative to the complete part can remain unresolved.
+
+Fit-depth maps sample the overlap boundary's nearest exact triangle distances
+to both sources. The map records their maximum and interpolates between samples.
+Coarse triangles are refined in their existing planes. An expanding R-tree query
+bounds candidate triangles, with exact point/triangle projections and bounded
+scratch arrays; the map is computed once on request. The conservative solid fit
+classification remains independent of this display measurement.
+
+Local Linux examples, generated icospheres (not production miniatures):
+
+| Original triangles | Binary STL equivalent | Preview triangles | Preview build | Full-resolution thickness |
+| ---: | ---: | ---: | ---: | ---: |
+| 327,680, radius 4 mm | 15.63 MiB | 81,048 | 0.18 s | Not measured in this run |
+| 1,310,720, radius 16 mm | 62.50 MiB | 321,272 | 1.01 s | 2.45 s |
+
+The larger fixture took 4.42 s to generate/prepare, excluded from the last two
+columns. Every face received a result; the sampled thickness was
+31.999857–31.999887 mm, consistent with the polygonal sphere. An independent
+81,920-face radius-4 mm sphere took 0.15 s for thickness including BVH construction,
+excluding preparation. Timing includes concurrent workspace activity and does
+not establish Windows performance, arbitrary file performance, or browser FPS.
+Tests also cover a hollow 0.5 mm wall, including rotation and million-millimetre
+coordinate offsets, unknown invalid meshes, original-mesh preservation,
+threshold reuse, PDF values and manual-review invalidation.

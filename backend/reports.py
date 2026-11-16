@@ -21,6 +21,7 @@ pdfmetrics.registerFontFamily('Checklist', normal='Checklist', bold='ChecklistBo
 TEXT = {
     'en': {
         'title': 'Model review checklist', 'scope': 'Scope: intersections and fit tolerance',
+        'wallScope': 'Wall thickness: sampled along surface normals on the original mesh',
         'complete': 'MANUAL REVIEW COMPLETE', 'incomplete': 'MANUAL REVIEW INCOMPLETE',
         'reviewed': 'Reviewed', 'pending': 'Pending', 'notChecked': 'Not checked', 'stale': 'Out of date',
         'clear': 'No intersections', 'intersections': 'Intersections', 'coincident': 'Coincident',
@@ -30,6 +31,7 @@ TEXT = {
     },
     'pl': {
         'title': 'Checklista przeglądu modelu', 'scope': 'Zakres: intersekcje i margines dopasowania',
+        'wallScope': 'Grubość: pomiar próbkowany prostopadle do powierzchni oryginalnej siatki',
         'complete': 'PRZEGLĄD RĘCZNY ZAKOŃCZONY', 'incomplete': 'PRZEGLĄD RĘCZNY NIEZAKOŃCZONY',
         'reviewed': 'Sprawdzone', 'pending': 'Do sprawdzenia', 'notChecked': 'Niesprawdzone', 'stale': 'Nieaktualne',
         'clear': 'Brak intersekcji', 'intersections': 'Intersekcje', 'coincident': 'Pełne pokrycie',
@@ -51,6 +53,16 @@ def analysis_label(task, text):
         count = task.get(field, 0)
         if count:
             labels.append(f"{text[label]}: {count}")
+    if task.get('thickness'):
+        wall = task['thickness']
+        minimum = wall['minimum']
+        labels.append(('Wall thickness' if text is TEXT['en'] else 'Grubość') + ': ' + (f'{minimum:.4g} mm' if minimum is not None else '—'))
+        labels.append(('Below minimum' if text is TEXT['en'] else 'Poniżej minimum') + f": {wall['thin_faces']} / {wall['faces']}")
+        labels.append(('Limit' if text is TEXT['en'] else 'Próg') + f": {wall['threshold']} mm")
+        if wall['unknown_faces']:
+            labels.append(text['uncertain'] + f": {wall['unknown_faces']}")
+    elif task.get('thickness_error'):
+        labels.append(('Wall thickness: ' if text is TEXT['en'] else 'Grubość: ') + text['uncertain'])
     return '\n'.join(labels) if labels else text['clear']
 
 
@@ -74,7 +86,10 @@ def checklist_pdf(parts, tasks, language, utc_offset_minutes, version, fit_toler
 
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=40, bottomMargin=43,
                             title=text['title'], author='ModelCheck 3D', creator=f'ModelCheck 3D {version}')
-    story = [para('MODELCHECK 3D', caption), Spacer(1, 10), para(text['title'], title), para(text['scope'], caption), Spacer(1, 18)]
+    story = [para('MODELCHECK 3D', caption), Spacer(1, 10), para(text['title'], title), para(text['scope'], caption)]
+    if any(task.get('thickness') or task.get('thickness_error') for task in tasks.values()):
+        story.append(para(text['wallScope'], caption))
+    story.append(Spacer(1, 18))
     banner = Table([[para(text['complete'] if complete else text['incomplete'], bold),
                      para(f"{text['reviewed']}: {done} / {len(parts)}", bold)]], colWidths=[350, doc.width - 350])
     banner.setStyle(TableStyle([

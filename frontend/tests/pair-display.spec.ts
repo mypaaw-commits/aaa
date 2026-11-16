@@ -37,9 +37,9 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
-  await page.getByRole('tab', { name: 'Connections', exact: true }).click();
-  await page.getByRole('button', { name: 'Connections of copy.stl', exact: true }).click();
-  await expect(page.locator('#relations-panel .coincident-label')).toHaveText('Coincident');
+  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('button', { name: 'Part results: copy.stl', exact: true }).click();
+  await expect(page.locator('#checks-panel .coincident-label')).toHaveText('Coincident');
   await page.getByRole('button', { name: 'Select pair: copy.stl / original.stl', exact: true }).click();
   for (const name of ['copy.stl', 'original.stl']) {
     const row = page.locator('.object-row').filter({ hasText: name });
@@ -51,7 +51,6 @@ test('Coincidence is purple but object selection stays blue and reviews remain m
   await expect(page.locator('.scene-label')).toContainText('2 / 3 visible');
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.review-status.has-coincident')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Intersections of copy.stl', exact: true }).click();
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await page.waitForTimeout(350);

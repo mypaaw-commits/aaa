@@ -6,6 +6,7 @@ from pathlib import Path
 import queue
 import re
 import stat
+import struct
 import subprocess
 import tempfile
 import threading
@@ -48,7 +49,7 @@ def check_workflow(base, offset, expected):
         assert all(part['solid'] for part in imported['parts']), imported
         source = request(prefix + f"/parts/{imported['parts'][0]['id']}/stl")
         assert len(source) == 684, 'Source STL export is missing or invalid'
-        json.loads(request(prefix + '/analysis', b'{}'))
+        json.loads(request(prefix + '/analysis', b'{"fit_map":true,"thickness":true}'))
         for _ in range(300):
             result = json.loads(request(prefix + '/analysis'))
             if result['job']['state'] != 'running':
@@ -58,6 +59,18 @@ def check_workflow(base, offset, expected):
         relation, = result['relations']
         assert relation['kind'] == expected, result
         assert len(result['tasks']) == 2 and all(not row['done'] for row in result['tasks']), result
+        assert all(abs(row['thickness']['minimum'] - 2) < 1e-5 for row in result['tasks']), result
+        def check_map(path):
+            content = request(prefix + path)
+            assert content[:4] == b'MCM2', 'Measurement map is missing'
+            faces, = struct.unpack('<I', content[4:8])
+            assert faces and len(content) == 8 + 48 * faces, 'Measurement map is truncated'
+            return content
+        check_map(f"/relations/{relation['id']}/fit-map")
+        thickness = check_map(f"/parts/{imported['parts'][0]['id']}/thickness")
+        settings = json.loads(request(prefix + '/thickness-settings', b'{"minimum":3}', method='PATCH'))
+        assert all(row['thickness']['thin_faces'] == 12 for row in settings['tasks']), settings
+        assert check_map(f"/parts/{imported['parts'][0]['id']}/thickness") == thickness, 'Threshold change replaced measured geometry'
         overlay = request(prefix + f"/relations/{relation['id']}/intersection")
         assert len(overlay) > 84, 'Native intersection geometry is missing'
         for language in ('en', 'pl'):
@@ -141,7 +154,7 @@ def main():
                     assert response.read(), f'Missing bundled frontend asset: {asset}'
             check_workflow(base, 1.5, 'INTERSECTION')
             check_workflow(base, 1.9995, 'WITHIN_TOLERANCE')
-            print(f"PASS: portable {info['platform']} {info['version']}: frontend, STL import, native overlap/fit, source/overlay STL and EN/PL PDF; no Python/Node in PATH")
+            print(f"PASS: portable {info['platform']} {info['version']}: frontend, STL import, native overlap/fit, rainbow fit/thickness maps, cached threshold changes, source/overlay STL and EN/PL PDF; no Python/Node in PATH")
         except BaseException:
             while not lines.empty():
                 log.append(lines.get_nowait())

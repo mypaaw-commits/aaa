@@ -42,7 +42,7 @@ test('Deleting a part whose 3D geometry is still loading keeps the loaded count 
   let requests = 0;
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/sessions/*/parts/*/stl', async route => {
+  await page.route('**/api/sessions/*/parts/*/preview', async route => {
     requests++;
     if (requests === 3) await gate;
     await route.continue();
