@@ -81,7 +81,7 @@ test('Soft is the only lighting and works with selection, transparency and resul
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await page.locator('.object-select').first().click();
@@ -92,7 +92,7 @@ test('Soft is the only lighting and works with selection, transparency and resul
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
   await expect(page.getByRole('checkbox', { name: 'Show intersections', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Transparency', exact: true }).click();
-  await expect(page.locator('.fit-legend')).toBeVisible();
+  await expect(page.locator('.rainbow-legend')).toContainText('Contact / fit');
   const fitted = await canvas.screenshot();
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
   expect(Buffer.compare(fitted, await canvas.screenshot())).not.toBe(0);

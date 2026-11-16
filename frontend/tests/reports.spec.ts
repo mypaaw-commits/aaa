@@ -71,7 +71,7 @@ test('The export footer stays visible while a long checklist scrolls', async ({ 
   const { stlBox } = await import('./fixtures');
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles(Array.from({ length: 24 }, (_, i) => stlBox(`Part ${i + 1}.stl`, i * 3)));
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(Array.from({ length: 24 }, (_, i) => stlBox(`Part ${i + 1}.stl`, i * 3)));
   await expect(page.locator('.object-row')).toHaveCount(24);
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   const button = page.getByRole('button', { name: 'Export PDF', exact: true });

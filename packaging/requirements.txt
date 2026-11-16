@@ -24,3 +24,5 @@ uvicorn==0.54.0
 colorama==0.4.6; sys_platform == 'win32'
 rtree==1.4.1
 embreex==4.4.0.post1
+libigl==2.6.3
+scipy==1.18.1

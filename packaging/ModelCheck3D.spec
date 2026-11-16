@@ -7,14 +7,15 @@ root = Path(SPECPATH).parent
 datas = [(str(root / 'frontend' / 'dist'), 'frontend/dist'),
          (str(root / 'backend' / 'assets'), 'backend/assets')]
 binaries = []
-hiddenimports = ['rtree', 'rtree.index', 'rtree.core', 'uvicorn.loops.asyncio', 'uvicorn.protocols.http.h11_impl',
+hiddenimports = ['scipy.sparse', 'rtree', 'rtree.index', 'rtree.core', 'uvicorn.loops.asyncio', 'uvicorn.protocols.http.h11_impl',
                  'uvicorn.lifespan.on']
-for package in ('manifold3d', 'trimesh', 'embreex'):
+for package in ('manifold3d', 'trimesh', 'embreex', 'igl'):
     package_data, package_binaries, package_imports = collect_all(package)
     datas += package_data
     binaries += package_binaries
     hiddenimports += package_imports
 datas, binaries = collect_delvewheel_libs_directory('embreex', datas=datas, binaries=binaries)
+datas, binaries = collect_delvewheel_libs_directory('igl', libdir_name='libigl.libs', datas=datas, binaries=binaries)
 # manifold3d is a standalone extension, not a Python package. The delvewheel
 # package-directory helper fails on Windows for that layout. Its wheel puts
 # the renamed MSVC DLL beside the .pyd; collect those DLLs from the wheel record.
@@ -25,7 +26,7 @@ for entry in manifold_distribution.files or ():
 
 # Keep metadata and bundled license notices, including for packages imported
 # dynamically by the geometry/PDF engines.
-for package in ('fastapi', 'uvicorn', 'trimesh', 'manifold3d', 'reportlab', 'numpy', 'pillow', 'rtree', 'embreex'):
+for package in ('fastapi', 'uvicorn', 'trimesh', 'manifold3d', 'reportlab', 'numpy', 'pillow', 'rtree', 'embreex', 'libigl', 'scipy'):
     datas += copy_metadata(package, recursive=True)
 
 a = Analysis([str(root / 'run.py')], pathex=[str(root)], binaries=binaries,

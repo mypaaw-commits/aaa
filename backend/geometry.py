@@ -19,19 +19,24 @@ class Shape:
     manifold: object | None
     cores: dict = field(default_factory=dict)
 
-def prepare(mesh: trimesh.Trimesh) -> Shape:
-    # Merge STL's repeated vertices on a working copy; never move source vertices.
-    mesh = mesh.copy()
-    mesh.merge_vertices()
-    if not len(mesh.faces) or not np.isfinite(mesh.vertices).all():
-        raise ValueError('Pusta siatka lub nieprawidłowe współrzędne.')
-    solid = bool(mesh.is_volume)
+def prepare(mesh: trimesh.Trimesh, indexed=False) -> Shape:
+    if not indexed:
+        mesh = mesh.copy()
+        mesh.merge_vertices()
+    if not len(mesh.faces):
+        raise ValueError('Empty mesh.')
+    for start in range(0, len(mesh.vertices), 262144):
+        if not np.isfinite(mesh.vertices[start:start+262144]).all():
+            raise ValueError('Invalid coordinates.')
+    # The native topology check avoids Trimesh's full expanded edge arrays on
+    # disk-indexed large meshes. Smaller imports preserve the existing path.
+    solid = indexed or bool(mesh.is_volume)
     manifold = None
     if solid:
         manifold = manifold3d.Manifold(manifold3d.Mesh64(
             vert_properties=np.asarray(mesh.vertices, dtype=np.float64),
-            tri_verts=np.asarray(mesh.faces, dtype=np.uint64)))
-        solid = manifold.status() == manifold3d.Error.NoError
+            tri_verts=np.asarray(mesh.faces).view(np.uint64)))
+        solid = manifold.status() == manifold3d.Error.NoError and manifold.volume() > 0
     # Validation creates large temporary triangle/edge arrays. Keep only the small
     # cached measurements used later, rather than retaining another mesh-sized copy.
     mesh._cache.clear(exclude=['bounds', 'mass_properties', 'is_volume', 'is_watertight', 'is_winding_consistent'])
@@ -119,7 +124,7 @@ def certifies_core_overlap(source: Shape, other: Shape, common: trimesh.Trimesh,
 
 
 def within_tolerance(a: Shape, b: Shape, common: trimesh.Trimesh, tolerance: float, solid_common) -> bool:
-    smaller = min(abs(a.mesh.volume), abs(b.mesh.volume))
+    smaller = min(abs(a.manifold.volume()), abs(b.manifold.volume()))
     volume = abs(float(solid_common.volume()))
     if volume >= smaller * (1 - 1e-8):
         return False  # Containment of a small/thin part is never a fit.
@@ -183,6 +188,7 @@ def _analyze_pair(a: Shape, b: Shape, tolerance: float):
         if volume > 0:
             output = solid_common.to_mesh64()
             common = trimesh.Trimesh(vertices=output.vert_properties[:, :3], faces=output.tri_verts, process=False)
+            if len(common.faces)>300000: common._analysis_solid = solid_common
             coincident = False
             # Bounds are only a cheap candidate filter. Identity requires both
             # Boolean differences to be empty, regardless of triangulation.
@@ -199,7 +205,7 @@ def _analyze_pair(a: Shape, b: Shape, tolerance: float):
                     return {**base, 'kind': 'WITHIN_TOLERANCE', 'volume': volume,
                             'message': 'Dopasowanie w przyjętym marginesie. Wynik nie jest liczony jako intersekcja.'}, common
             # Borderline volumes remain uncertain unless the fit was verified.
-            scale = max(float(min(a.mesh.volume, b.mesh.volume)), 1e-12)
+            scale = max(float(min(a.manifold.volume(), b.manifold.volume())), 1e-12)
             if not coincident and volume <= max(1e-12, scale * 1e-10):
                 return {**base, 'volume': volume, 'message': 'Przenikanie na granicy precyzji obliczeń.'}, None
             return {**base, 'kind': 'INTERSECTION', 'volume': volume,

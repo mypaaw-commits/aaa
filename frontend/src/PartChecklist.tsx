@@ -18,23 +18,25 @@ function Notes({ task, name, disabled, onReview }: { task: CheckTask; name: stri
 export function PartChecklist({ parts, tasks, busy, onReview, name, exporting, onExport }: Props) {
   const { t, language } = useI18n();
   const [noteId, setNoteId] = useState<string | null>(null);
-  const done = tasks.filter(task => task.done && !task.stale).length;
+  const enabledChecks=[...new Set(tasks.map(task=>task.check))];if(!enabledChecks.length)enabledChecks.push('INTERSECTIONS');
+  const done = parts.filter(part=>{const checks=tasks.filter(task=>task.part_id===part.id);return checks.length===enabledChecks.length&&checks.every(task=>task.done&&!task.stale);}).length;
   return (
         <section className="part-checklist" aria-label={t('checklist')}>
           <div className="result-section-heading"><h2>{t('reviewScope')}</h2><span className="review-count">{t('reviewedCount', { done, total: parts.length })}</span></div>
-          {tasks.length > 0 && <progress className="review-progress" aria-label={t('reviewed')} value={done} max={tasks.length} />}
+          {tasks.length > 0 && <progress className="review-progress" aria-label={t('reviewed')} value={done} max={parts.length} />}
           <div className="part-review-scroll">
           {!parts.length && <p className="empty-note compact">{t('noObjects')}</p>}
-          {parts.map(part => {
-            const task = tasks.find(row => row.part_id === part.id);
+          {parts.flatMap(part => {
+            const checks=tasks.filter(row=>row.part_id===part.id);
+            return enabledChecks.map(kind=>{const task=checks.find(task=>task.check===kind);
             const key = !task ? 'notChecked' : task.stale ? 'stale' : task.result === 'UNCERTAIN' ? 'uncertain' : task.intersections === 1 ? 'intersectionCountOne' : task.intersections ? 'intersectionCount' : task.fit_pairs ? 'withinTolerance' : 'clear';
-            return <section className="review-item" key={part.id}><div className={`review-row ${task?.done && !task.stale ? 'reviewed' : ''}`} data-part-id={part.id}>
-              {task ? <input type="checkbox" aria-label={t('reviewPart', { name: name(part) })} checked={task.done && !task.stale} disabled={busy || task.stale} onChange={event => onReview(task, event.target.checked, task.note)} /> : <span className="pending-check" aria-hidden="true">—</span>}
-              <div className="review-object"><strong title={name(part)}>{name(part)}</strong><span className={`review-status ${key} ${task?.coincident_pairs ? 'has-coincident' : ''}`} title={task?.stale ? t('staleTip') : task?.result === 'UNCERTAIN' ? t('unclearCount', { count: task.uncertain_pairs }) : undefined}>{key === 'uncertain' || key === 'stale' ? <TriangleAlert size={12} /> : key === 'clear' ? <CircleCheck size={12} /> : key === 'withinTolerance' ? <Ruler size={12} /> : task?.coincident_pairs ? <Copy size={12} /> : task?.intersections ? <ScanLine size={12} /> : null}{task && !task.stale && task.result !== 'UNCERTAIN' && task.coincident_pairs === task.intersections && task.coincident_pairs ? t('coincident') : t(key, { count: task?.intersections ?? 0 })}{task && !task.stale && task.coincident_pairs > 0 && task.coincident_pairs < task.intersections && ` · ${t('coincidentCount', { count: task.coincident_pairs })}`}{task && !task.stale && task.fit_pairs > 0 && task.intersections > 0 && ` · ${t('withinToleranceCount', { count: task.fit_pairs })}`}</span></div>
-              {task?.thickness && !task.stale && <span className={task.thickness.thin_faces ? 'wall-badge thin' : 'wall-badge'}>{t('measuredMinimum')}: {task.thickness.minimum?.toLocaleString(language, { maximumFractionDigits: 4 }) ?? '—'} mm · {t('thinFaces', { count: task.thickness.thin_faces })}</span>}
+            return <section className="review-item" key={task?.id??part.id+kind}><div className={`review-row ${task?.done && !task.stale ? 'reviewed' : ''}`} data-part-id={part.id}>
+              {task ? <input type="checkbox" aria-label={t('reviewPart', { name: name(part)+(task.check==='THICKNESS'?' · '+t('thicknessMap'):'') })} checked={task.done && !task.stale} disabled={busy || task.stale} onChange={event => onReview(task, event.target.checked, task.note)} /> : <span className="pending-check" aria-hidden="true">—</span>}
+              <div className="review-object"><strong title={name(part)}>{name(part)}{kind==='THICKNESS'&&<small> · {t('thicknessMap')}</small>}</strong><span className={`review-status ${kind==='THICKNESS'&&task?.thickness?.deficit?'thin':''} ${key} ${task?.coincident_pairs ? 'has-coincident' : ''}`} title={task?.stale ? t('staleTip') : task?.result === 'UNCERTAIN' ? t('unclearCount', { count: task.uncertain_pairs }) : undefined}>{task?.check==='THICKNESS'&&!task.stale?(task.thickness?<><Ruler size={12}/>{t('measuredMinimum')}: {task.thickness.minimum?.toLocaleString(language,{maximumFractionDigits:4})??'—'} mm</>:t('uncertain')):<span>{key === 'uncertain' || key === 'stale' ? <TriangleAlert size={12} /> : key === 'clear' ? <CircleCheck size={12} /> : key === 'withinTolerance' ? <Ruler size={12} /> : task?.coincident_pairs ? <Copy size={12} /> : task?.intersections ? <ScanLine size={12} /> : null}{task && !task.stale && task.result !== 'UNCERTAIN' && task.coincident_pairs === task.intersections && task.coincident_pairs ? t('coincident') : t(key, { count: task?.intersections ?? 0 })}{task && !task.stale && task.coincident_pairs > 0 && task.coincident_pairs < task.intersections && ` · ${t('coincidentCount', { count: task.coincident_pairs })}`}{task && !task.stale && task.fit_pairs > 0 && task.intersections > 0 && ` · ${t('withinToleranceCount', { count: task.fit_pairs })}`}</span>}</span></div>
+
               {task && <button className={`icon-button note-button ${task.note ? 'has-note' : ''}`} aria-pressed={noteId === task.id} title={t('noteFor', { name: name(part) })} aria-expanded={noteId === task.id} onClick={() => setNoteId(noteId === task.id ? null : task.id)}><MessageSquare size={15} /></button>}
-            </div>{task && noteId === task.id && <Notes task={task} name={name(part)} disabled={busy} onReview={onReview} />}</section>;
-          })}
+            </div>{task && noteId === task.id && <Notes task={task} name={name(part)+(task.check==='THICKNESS'?' · '+t('thicknessMap'):'')} disabled={busy} onReview={onReview} />}</section>;
+          });})}
           </div>
       <footer className="checklist-footer">
         <div className={`completion-state ${parts.length > 0 && done === parts.length ? 'complete' : ''}`}><CircleCheck size={16} /><span>{parts.length > 0 && done === parts.length ? t('reviewComplete') : t('partsRemaining', { count: parts.length - done })}</span></div>

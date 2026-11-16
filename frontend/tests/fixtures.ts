@@ -7,8 +7,8 @@ export function stlBox(name: string, x: number, size = 2, y = 0) {
 }
 
 export async function loadExample(page: Page) {
-  await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', -12, 8, -4), stlBox('B.stl', -4, 8, -4), stlBox('C.stl', 3.5, 8, -4)]);
+  await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled({timeout:15000});
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl', -12, 8, -4), stlBox('B.stl', -4, 8, -4), stlBox('C.stl', 3.5, 8, -4)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
 }

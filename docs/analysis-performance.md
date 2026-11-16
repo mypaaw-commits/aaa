@@ -261,3 +261,62 @@ not establish Windows performance, arbitrary file performance, or browser FPS.
 Tests also cover a hollow 0.5 mm wall, including rotation and million-millimetre
 coordinate offsets, unknown invalid meshes, original-mesh preservation,
 threshold reuse, PDF values and manual-review invalidation.
+
+## Version 0.27: independent checks and 1 GiB import
+
+Intersections and wall thickness now have separate worker actions and manual
+review tasks. A wall run leaves pair findings and intersection reviews intact.
+Local contact patches are computed separately from intersection volumes using
+short opposing-normal rays and polygon clipping on original facets. Known contact
+can be displayed for a pair whose global intersection result remains unresolved;
+this never changes its Needs review status into Clear.
+
+Point-to-triangle distances now use libigl's native AABB tree in batches instead
+of Python/R-tree candidate loops. Contact and thickness use batched Embree rays.
+Ready-to-draw meshes remain cached; visibility/selection updates use a relation
+lookup table instead of repeated searches across all pairs. The default display
+is neutral parts with turquoise-to-red intersection/contact surfaces. Thickness
+has its own optional red-to-white map and dimensions in mm.
+
+Files at least 64 MiB use bounded binary parsing, hashed disk buckets, indexed
+float64/int64 memory mappings and native topology validation. Exact float32 STL
+positions are retained. Large ASCII input is streamed to a binary spool first.
+The file limit is 1,073,741,824 bytes. Preview simplification is adaptive, separate
+from measurement. Color previews aggregate original thickness samples; the two
+extremal source facets are retained, and reported numbers/locations use all
+original face-centre measurements. Map GET endpoints stream the prepared display
+and do not perform measurements. Disk owners close mappings before cleanup on
+Windows; obsolete cyclic meshes are collected on the shared geometry worker.
+
+A generated 32 mm cube with grid 1320 has 20,908,800 triangles, 10,454,402 indexed
+vertices and 1,045,440,084 STL bytes. A direct cold load on the Linux cloud host
+(4 CPU quota, 32 GiB RAM) took 38.06 s for disk indexing, 36.32 s for native
+preparation and 17.79 s for its 12-face preview. Peak RSS was 10,805.7 MiB.
+
+The real browser workflow then uploaded that same STL through the application,
+measured its original faces and exercised camera/visibility/color changes:
+
+| Measurement | Result |
+| --- | ---: |
+| Browser upload + import | 137.174 s |
+| Wall measurement + prepared color display | 60.759 s |
+| Native original min / max thickness | 32 / 32 mm |
+| Source / display-preview / map faces | 20,908,800 / 12 / 14 |
+| Six keyboard orbit steps + captured frame | 0.292 s |
+| Analysis POSTs / map GETs during that workflow | 1 / 1 |
+| Server high-water RSS | 11,101,928 KiB (about 10.59 GiB) |
+| Server RSS after deleting the model | 272,376 KiB (about 266 MiB) |
+
+Timings include concurrent workspace activity. The optional Playwright large-file
+test asserts the full original face count, solid validity, 32 mm extrema, bounded
+preview/map payloads, camera changes and absence of repeated analysis/downloads.
+This fixture has coplanar faces that simplify well; it does not establish an
+arbitrary miniature's frame rate, Boolean cost, or Windows memory use. Existing
+conservative fit limits remain. A 1 GB file can exceed a computer's practical
+capacity depending on geometry and other loaded parts.
+
+```bash
+.venv/bin/python -m backend.benchmark_import --grid 1320 --output /tmp/cube-1gb.stl
+MODELCHECK_LARGE_STL=/tmp/cube-1gb.stl CHROMIUM_PATH=/usr/bin/chromium \
+  npm run test:e2e --prefix frontend -- --workers=1 tests/large-import.spec.ts
+```

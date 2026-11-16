@@ -20,7 +20,7 @@ pdfmetrics.registerFontFamily('Checklist', normal='Checklist', bold='ChecklistBo
 
 TEXT = {
     'en': {
-        'title': 'Model review checklist', 'scope': 'Scope: intersections and fit tolerance',
+        'scopeThickness':'Scope: wall thickness', 'title': 'Model review checklist', 'scope': 'Scope: intersections and fit tolerance',
         'wallScope': 'Wall thickness: sampled along surface normals on the original mesh',
         'complete': 'MANUAL REVIEW COMPLETE', 'incomplete': 'MANUAL REVIEW INCOMPLETE',
         'reviewed': 'Reviewed', 'pending': 'Pending', 'notChecked': 'Not checked', 'stale': 'Out of date',
@@ -30,7 +30,7 @@ TEXT = {
         'review': 'Manual review', 'notes': 'Notes', 'current': 'Analysis current', 'yes': 'Yes', 'no': 'No',
     },
     'pl': {
-        'title': 'Checklista przeglądu modelu', 'scope': 'Zakres: intersekcje i margines dopasowania',
+        'scopeThickness':'Zakres: grubość ścianek', 'title': 'Checklista przeglądu modelu', 'scope': 'Zakres: intersekcje i margines dopasowania',
         'wallScope': 'Grubość: pomiar próbkowany prostopadle do powierzchni oryginalnej siatki',
         'complete': 'PRZEGLĄD RĘCZNY ZAKOŃCZONY', 'incomplete': 'PRZEGLĄD RĘCZNY NIEZAKOŃCZONY',
         'reviewed': 'Sprawdzone', 'pending': 'Do sprawdzenia', 'notChecked': 'Niesprawdzone', 'stale': 'Nieaktualne',
@@ -57,19 +57,22 @@ def analysis_label(task, text):
         wall = task['thickness']
         minimum = wall['minimum']
         labels.append(('Wall thickness' if text is TEXT['en'] else 'Grubość') + ': ' + (f'{minimum:.4g} mm' if minimum is not None else '—'))
-        labels.append(('Below minimum' if text is TEXT['en'] else 'Poniżej minimum') + f": {wall['thin_faces']} / {wall['faces']}")
+        labels.append(('Maximum thickness' if text is TEXT['en'] else 'Największa grubość') + f": {wall['maximum']:.4g} mm" if wall.get('maximum') is not None else text['uncertain'])
+        labels.append(('Maximum shortfall' if text is TEXT['en'] else 'Największy brak grubości') + f": {max(0,wall['threshold']-minimum):.4g} mm" if minimum is not None else text['uncertain'])
         labels.append(('Limit' if text is TEXT['en'] else 'Próg') + f": {wall['threshold']} mm")
         if wall['unknown_faces']:
             labels.append(text['uncertain'] + f": {wall['unknown_faces']}")
     elif task.get('thickness_error'):
         labels.append(('Wall thickness: ' if text is TEXT['en'] else 'Grubość: ') + text['uncertain'])
+    for check in task.get('_pending_checks',[]):
+        labels.append(('Wall thickness' if check=='THICKNESS' and text is TEXT['en'] else 'Grubość' if check=='THICKNESS' else text['intersections'])+': '+text['notChecked'])
     return '\n'.join(labels) if labels else text['clear']
 
 
 def checklist_pdf(parts, tasks, language, utc_offset_minutes, version, fit_tolerance):
     text = TEXT[language]
     generated = datetime.now(timezone.utc).astimezone(timezone(timedelta(minutes=utc_offset_minutes)))
-    current = all(tasks.get(part['id']) and not tasks[part['id']]['stale'] for part in parts)
+    current = all(tasks.get(part['id']) and not tasks[part['id']]['stale'] and not tasks[part['id']].get('_pending_checks') for part in parts)
     done = sum(bool(tasks.get(part['id'], {}).get('done')) and not tasks[part['id']]['stale'] for part in parts)
     complete = current and done == len(parts)
     buffer = BytesIO()
@@ -86,7 +89,7 @@ def checklist_pdf(parts, tasks, language, utc_offset_minutes, version, fit_toler
 
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=40, bottomMargin=43,
                             title=text['title'], author='ModelCheck 3D', creator=f'ModelCheck 3D {version}')
-    story = [para('MODELCHECK 3D', caption), Spacer(1, 10), para(text['title'], title), para(text['scope'], caption)]
+    story = [para('MODELCHECK 3D', caption), Spacer(1, 10), para(text['title'], title), para(text['scopeThickness'] if tasks and all(task.get('check')=='THICKNESS' for task in tasks.values()) else text['scope'], caption)]
     if any(task.get('thickness') or task.get('thickness_error') for task in tasks.values()):
         story.append(para(text['wallScope'], caption))
     story.append(Spacer(1, 18))

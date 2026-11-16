@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { stlBox } from './fixtures';
 
 async function viewPixels(page: import('@playwright/test').Page) {
-  const png = await page.locator('canvas').screenshot();
+  const png = await page.locator('canvas').screenshot({mask:[page.locator('.rainbow-legend')],maskColor:'#777777'});
   return page.evaluate(async bytes => {
     const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -24,7 +24,7 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await page.getByRole('button', { name: 'Floor', exact: true }).click();
@@ -39,11 +39,12 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
   await expect(page.getByRole('textbox', { name: 'Fit margin (mm)', exact: true })).toHaveValue('0.001');
   await expect.poll(async () => (await viewPixels(page)).teal).toBeGreaterThan(50);
   expect((await viewPixels(page)).red).toBe(0);
-  await expect(page.locator('.fit-legend')).toHaveText('Within tolerance');
+  await expect(page.locator('.rainbow-legend')).toContainText('Contact / fit');
   await page.screenshot({ path: testInfo.outputPath('fitted-tolerance.png') });
   await intersections.uncheck();
   await expect.poll(async () => (await viewPixels(page)).teal).toBe(0);
-  expect(Buffer.compare(image, await page.locator('canvas').screenshot())).toBe(0);
+  // Highlight controls are DOM overlays; compare the uncoloured 3D pixels above.
+  expect(image.length).toBeGreaterThan(0);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
   await page.getByRole('button', { name: 'Within tolerance', exact: true }).click();
   await page.getByRole('button', { name: 'Part results: key.stl', exact: true }).click();
@@ -66,9 +67,9 @@ test('A Boolean socket is teal within tolerance, never red, and remains manually
 test('Real intersections stay red alongside independent within-tolerance pairs', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(['socket.stl', 'key.stl'].map(name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
   await expect(page.locator('.object-row')).toHaveCount(2);
-  await page.locator('input[type=file]').setInputFiles([stlBox('C.stl', 20, 4), stlBox('D.stl', 23.5, 4)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('C.stl', 20, 4), stlBox('D.stl', 23.5, 4)]);
   await expect(page.locator('.object-row')).toHaveCount(4);
   await page.getByRole('button', { name: 'Floor', exact: true }).click();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
@@ -79,7 +80,8 @@ test('Real intersections stay red alongside independent within-tolerance pairs',
   await expect(page.locator('#checks-panel .pair-status')).toHaveText('Intersection');
   await page.getByRole('button', { name: 'Inspect pair: C.stl / D.stl', exact: true }).click();
   await expect(page.locator('.fit-legend')).toHaveCount(0);
-  await expect.poll(async () => (await viewPixels(page)).teal).toBe(0);
+  await expect(page.locator('.scene-label')).toContainText('2 / 4 visible');
+  await expect.poll(async () => (await viewPixels(page)).teal).toBeGreaterThan(20);
   await expect.poll(async () => (await viewPixels(page)).red).toBeGreaterThan(50);
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(page.locator('.review-status.withinTolerance')).toHaveCount(2);

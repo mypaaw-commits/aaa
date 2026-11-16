@@ -4,12 +4,12 @@ import { loadExample, stlBox } from './fixtures';
 test('Connections expand per object, keep selection, and distinguish review icons', async ({ page }, testInfo) => {
   await page.goto('/');
   await loadExample(page);
-  await page.locator('input[type=file]').setInputFiles([stlBox('D.stl', 30)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('D.stl', 30)]);
   await expect(page.locator('.object-row')).toHaveCount(4);
   await page.locator('.object-select').first().click();
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await expect(page.locator('#checks-panel .connection-group-toggle')).toHaveCount(4);
   const a = page.getByRole('button', { name: 'Part results: A.stl', exact: true });
   const b = page.getByRole('button', { name: 'Part results: B.stl', exact: true });
@@ -29,11 +29,11 @@ test('Connections expand per object, keep selection, and distinguish review icon
   await expect(page.locator('.connection-children:visible')).toHaveText('No connections found');
   const broken = stlBox('open.stl', 0);
   broken.buffer = Buffer.from(broken.buffer.toString().replace(/facet normal[^]*?endfacet\n/, ''));
-  await page.locator('input[type=file]').setInputFiles([broken]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([broken]);
   await expect(page.locator('.object-row')).toHaveCount(5);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await page.getByRole('button', { name: 'Part results: open.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .pair-status.uncertain')).toContainText(['Needs review']);
   await expect(page.locator('#checks-panel .pair-symbol.uncertain svg').first()).toHaveClass(/lucide-triangle-alert/);
@@ -106,7 +106,7 @@ test('Browsing connections after analysis leaves the 3D image unchanged and has 
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
   await page.waitForTimeout(250);
   const before = await page.locator('canvas').screenshot();
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Show contact areas', exact: true })).toHaveCount(0);
   expect(contactRequests).toEqual([]);
   expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);

@@ -19,11 +19,11 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.screenshot({ path: testInfo.outputPath('selection.png') });
   await expect(page.locator('.review-row')).toHaveCount(3);
   await expect(page.locator('.review-row input[type=checkbox]')).toHaveCount(0);
-  const overlay = page.waitForResponse(response => response.url().endsWith('/intersection') && response.ok());
+  const overlay = page.waitForResponse(response => response.url().endsWith('/fit-map') && response.ok());
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
   await (await overlay).finished();
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await expect(page.locator('#checks-panel .connection-group-toggle')).toHaveCount(3);
   await expect(page.locator('#checks-panel .result-pair')).toHaveCount(0);
   await page.getByRole('button', { name: 'Part results: A.stl', exact: true }).click();
@@ -44,8 +44,8 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const before = await page.locator('canvas').screenshot();
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
-  await page.getByRole('tab', { name: 'Part checklist', exact: true }).press('ArrowLeft');
-  await expect(page.getByRole('tab', { name: 'Analysis', exact: true })).toBeFocused();
+  await page.getByRole('tab', { name: 'Part checklist', exact: true }).press('Home');
+  await expect(page.getByRole('tab', { name: 'Intersections', exact: true })).toBeFocused();
   expect(Buffer.compare(before, await page.locator('canvas').screenshot())).toBe(0);
   await expect(page.getByRole('button', { name: 'Zoom to pair: A.stl / B.stl', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Inspect pair: A.stl / B.stl', exact: true }).click();
@@ -88,7 +88,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();
   await expect(bReview).toBeChecked();
   await expect(page.getByRole('textbox', { name: 'Notes: B.stl', exact: true })).toHaveValue('Inspect the peg before printing.');
-  await page.locator('input[type=file]').setInputFiles([stlBox('D.stl', 40)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('D.stl', 40)]);
   await expect(page.locator('.object-row')).toHaveCount(4);
   await expect(page.locator('.review-row input:disabled')).toHaveCount(3);
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
@@ -103,7 +103,7 @@ test('Grouped connections, independent part reviews, notes and stale checks', as
 test('Three overlapping objects group checks and keep a unique pair total', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles([stlBox('base without socket.stl', 0, 8), stlBox('base.stl', 1, 8), stlBox('base with socket.stl', 2, 8)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('base without socket.stl', 0, 8), stlBox('base.stl', 1, 8), stlBox('base with socket.stl', 2, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('#checks-panel .intersection-group')).toHaveCount(3);

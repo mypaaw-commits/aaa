@@ -4,7 +4,7 @@ import { stlBox } from './fixtures';
 test('Editable margin invalidates reviews, preserves notes and is applied before Analyze, including Polish decimals', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 1.9995)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 1.9995)]);
   await expect(page.locator('.object-row')).toHaveCount(2);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('0 intersection pairs · 1 within tolerance');
@@ -36,7 +36,7 @@ test('Editable margin invalidates reviews, preserves notes and is applied before
 test('Invalid margin does not start an analysis or overwrite the saved setting', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 1)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 1)]);
   await expect(page.locator('.object-row')).toHaveCount(2);
   const posts: string[] = [];
   page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/analysis')) posts.push(request.url()); });

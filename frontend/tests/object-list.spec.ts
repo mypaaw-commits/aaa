@@ -87,7 +87,7 @@ test('Marquee scrolls a long list and stops when the mouse is released', async (
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   const triangles = [[[0,0,0],[0,1,0],[1,0,0]], [[0,0,0],[1,0,0],[0,0,1]], [[0,0,0],[0,0,1],[0,1,0]], [[1,0,0],[0,1,0],[0,0,1]]];
   const buffer = Buffer.from(`solid tetra\n${triangles.map(face => `facet normal 0 0 0\nouter loop\n${face.map(v => `vertex ${v.join(' ')}`).join('\n')}\nendloop\nendfacet`).join('\n')}\nendsolid tetra`);
-  await page.locator('input[type=file]').setInputFiles(Array.from({ length: 35 }, (_, i) => ({ name: `part-${String(i + 1).padStart(2, '0')}.stl`, mimeType: 'model/stl', buffer })));
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(Array.from({ length: 35 }, (_, i) => ({ name: `part-${String(i + 1).padStart(2, '0')}.stl`, mimeType: 'model/stl', buffer })));
   await expect(page.locator('.object-row')).toHaveCount(35);
   const list = page.getByRole('listbox');
   const area = (await list.boundingBox())!;

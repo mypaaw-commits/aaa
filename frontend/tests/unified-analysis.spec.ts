@@ -20,7 +20,7 @@ test('One Analyze action creates connections, check results and a manual checkli
   await expect(page.getByRole('checkbox', { name: 'Show intersections', exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: 'Find connections', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Check intersections', exact: true })).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await page.getByRole('button', { name: 'Part results: B.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .result-pair')).toHaveCount(2);
   await page.getByRole('tab', { name: 'Part checklist', exact: true }).click();

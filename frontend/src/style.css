@@ -307,3 +307,49 @@ progress::-moz-progress-bar { background: #739a94; border-radius: 3px; }
 .result-filters button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #d5dfe7; border-radius: 4px; color: #617584; background: #fff; font-size: 11px; }
 .result-filters button span { font-variant-numeric: tabular-nums; color: #314e62; }
 .result-filters button[aria-pressed=true] { background: #e9f1f6; border-color: #87a7ba; color: #294f67; }
+
+/* Clear tool boundaries and dimensions in millimetres. */
+.tool-tabs { display:grid; grid-template-columns:1fr 1fr; gap:3px; padding:3px; border:1px solid #d5dee5; background:#eaf0f4; border-radius:6px; margin-bottom:12px; }
+.tool-tabs button { display:flex; align-items:center; justify-content:center; gap:5px; padding:9px 4px; font-size:11px; border-radius:4px; color:#697a87; }
+.tool-tabs button[aria-pressed=true] { background:white; color:#284b61; box-shadow:0 1px 3px #263e5020; }
+.objects .analysis-controls { margin-top:12px; }
+.objects .analyze-button { width:100%; justify-content:center; }
+.analysis-heading { display:block; margin-top:9px; }
+.result-tabs { grid-template-columns:1fr 1fr 1fr; }
+.result-tabs [role=tab] { font-size:11px; padding:14px 2px 12px; }
+.thickness-card { padding:15px; border-bottom:1px solid #dfe6ec; }
+.thickness-card h3 { font-size:13px; margin:0 0 12px; overflow:hidden; text-overflow:ellipsis; }
+.thickness-metrics { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.thickness-extreme { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:10px; background:#f4f7f9; border:1px solid #d7e1e9; border-radius:5px; text-align:left; }
+.thickness-extreme:hover { border-color:#87a4b8; background:#edf3f7; }
+.thickness-extreme span { font-size:11px; color:#687d8d; }
+.thickness-extreme strong { font-size:16px; font-weight:600; color:#2e4859; }
+.thickness-extreme svg { position:absolute; right:7px; top:9px; color:#7c929f; }
+.thickness-card.thin .minimum strong, .deficit { color:#ba3a31; }
+.thickness-card dl { margin:12px 0; font-size:11px; }
+.thickness-card dl div { display:flex; justify-content:space-between; margin:7px 0; }
+.thickness-card dt { color:#6f8491; }
+.thickness-card dd { margin:0; font-variant-numeric:tabular-nums; font-weight:600; }
+.measurement-warning { display:flex; gap:5px; font-size:11px; color:#8c6f38; }
+.fit-gradient { height:12px; border-radius:2px; background:linear-gradient(90deg,#19b6a1,#ffa640,#f01f1a); }
+.thickness-gradient { height:12px; border:1px solid #d3dce3; border-radius:2px; background:linear-gradient(90deg,#f01f1a,#fff); }
+.folder-root { display:block; width:100%; text-align:left; padding:9px 13px; color:#7c8c99; font-size:11px; border-bottom:1px solid #e4eaf0; }
+.folder-root[aria-pressed=true] { color:#365e78; }
+.folder-row { display:flex; align-items:center; min-height:35px; gap:2px; padding-right:8px; color:#536b7d; }
+.folder-row.active { background:#e7eff5; }
+.folder-toggle { display:flex; align-items:center; gap:5px; flex:1; min-width:0; text-align:left; padding:7px 0; font-size:12px; }
+.folder-toggle span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.folder-toggle svg { flex-shrink:0; }
+.folder-toggle small { font-size:10px; color:#8496a3; }
+.folder-row .icon-button { width:25px; }
+.folder-drop { outline:2px solid #5084ac; outline-offset:-2px; background:#e1eef7; }
+.move-folder-label { display:block; font-size:11px; color:#667e8d; padding:7px; border-bottom:1px solid #e3e9ee; margin-bottom:4px; }
+.move-folder-label select { display:block; max-width:240px; width:100%; min-height:30px; margin-top:5px; border:1px solid #c6d3dc; border-radius:4px; font-size:12px; }
+.review-object small { font-size:10px; color:#7a8c98; font-weight:normal; }
+.review-status.thin { color:#b73a30; }
+.header-actions .button:not(.primary) { color:#e0eaf1; background:#34434f; border-color:#5b6e7d; }
+.header-actions .button:not(.primary):hover:not(:disabled) { color:white; background:#405363; border-color:#7c95a6; }
+.thickness-overall { background:#f7fafc; border-bottom:5px solid #e9f0f5; }
+.thickness-extreme small { display:block; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#748a99; }
+.pair-symbol.coincident, .pair-files .coincident-label, .review-status.has-coincident { color:#bd3c33; }
+.pair-files .coincident-label { background:#fbe9e6; }

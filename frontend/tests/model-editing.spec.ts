@@ -29,7 +29,7 @@ test('Delete selected removes a batch, Delete works on the list, and the empty s
   await page.keyboard.press('Delete');
   await expect(rows).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No model loaded', exact: true })).toBeVisible();
-  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl', 0)]);
   await expect(rows).toHaveCount(1);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await expect(page.locator('.scene-label')).toContainText('1 / 1 visible');
@@ -48,7 +48,7 @@ test('Deleting a part whose 3D geometry is still loading keeps the loaded count 
     await route.continue();
   });
   try {
-    await page.locator('input[type=file]').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 3), stlBox('C.stl', 6)]);
+    await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl', 0), stlBox('B.stl', 3), stlBox('C.stl', 6)]);
     await expect(page.locator('.geometry-loading')).toHaveText('Loading 3D view: 2 / 3');
     await page.locator('.object-row').filter({ hasText: 'C.stl' }).locator('.object-select').click();
     await page.keyboard.press('Delete');
@@ -87,13 +87,13 @@ test('Additional imports queue during analysis and upload, then leave isolation 
   const chooser = page.waitForEvent('filechooser');
   await importButton.click();
   await (await chooser).setFiles([stlBox('D.stl', 20)]);
-  await page.locator('input[type=file]').setInputFiles([stlBox('E.stl', 25)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('E.stl', 25)]);
   await expect(page.locator('.import-queue')).toHaveText('Queued for import: 2');
   await expect(page.locator('.object-row')).toHaveCount(1); // Search still shows B before the import starts.
   holdAnalysis = false;
   await expect(page.locator('.statusbar').getByRole('status')).toHaveText('Processing…');
   await expect(page.locator('.import-queue')).toHaveText('');
-  await page.locator('input[type=file]').setInputFiles([stlBox('F.stl', 30)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('F.stl', 30)]);
   await expect(page.locator('.import-queue')).toHaveText('Queued for import: 1');
   releaseUpload();
   await expect(page.locator('.object-row')).toHaveCount(6);
@@ -117,7 +117,7 @@ test('The floor stays below the complete model when framing, isolating or hiding
     file.buffer = Buffer.from(file.buffer.toString().replace(/vertex (\S+) (\S+) (\S+)/g, (_, x, y, original) => `vertex ${x} ${y} ${Number(original) + z}`));
     return file;
   }
-  await page.locator('input[type=file]').setInputFiles([atZ(low, -30), atZ(high, 30)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([atZ(low, -30), atZ(high, 30)]);
   await expect(page.locator('.object-row')).toHaveCount(2);
   await expect(page.locator('.geometry-loading')).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Projection', exact: true }).selectOption('orthographic');

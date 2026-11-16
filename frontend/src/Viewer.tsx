@@ -3,14 +3,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import type { Part, Relation } from './types';
-import { partColor, partColors } from './types';
+import { partColors } from './types';
 import { useI18n } from './i18n';
 import { readSurfaceMap, mapMaterial, mapScale } from './SurfaceMap';
 import type { ColourMode } from './SurfaceMap';
 
 export type CameraView = 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'isometric';
 export type ImageFormat = 'png' | 'jpeg' | 'webp';
-export type ViewerHandle = { fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void; capture: (format: ImageFormat) => Promise<Blob> };
+export type ViewerHandle = { focusPoint:(point:number[],radius:number)=>void; fit: (ids?: string[]) => void; view: (view: CameraView) => void; orbit: (horizontal: number, vertical: number) => void; capture: (format: ImageFormat) => Promise<Blob> };
 export type Projection = 'perspective' | 'orthographic';
 type Camera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 type Props = { session: string; parts: Part[]; relations: Relation[]; selected: string[]; transparent: boolean; isolated: string[] | null; intersections: boolean; floor: boolean; projection: Projection; colourMode: ColourMode; fitTolerance: number; minimumThickness: number; thicknessIds: string[]; onViewChange: (view: CameraView | null) => void; onSelect: (id: string | null, multi: boolean) => void; onError: (message: string) => void; onLoaded: (count: number) => void };
@@ -44,6 +44,18 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
   const overlayReady = useRef<Promise<boolean>>(Promise.resolve(true));
   const cachedOverlays = useRef(new Map<string, THREE.Group>());
   useImperativeHandle(ref, () => ({
+    focusPoint:(point,radius)=>{
+      const e=engine.current;if(!e)return;
+      const position=new THREE.Vector3().fromArray(point);
+      const direction=e.camera.position.clone().sub(e.controls.target).normalize();
+      e.controls.target.copy(position);e.camera.position.copy(position).addScaledVector(direction,radius*4);
+      e.camera.zoom=1;
+      if(e.camera instanceof THREE.OrthographicCamera){const aspect=e.renderer.domElement.clientWidth/Math.max(e.renderer.domElement.clientHeight,1);e.camera.top=radius*1.3;e.camera.bottom=-radius*1.3;e.camera.left=-radius*1.3*aspect;e.camera.right=radius*1.3*aspect;}
+      e.camera.near=Math.max(radius/10000,.00001);e.camera.updateProjectionMatrix();e.controls.update();
+      const previous=e.scene.getObjectByName('measurement-location');if(previous){e.scene.remove(previous);dispose(previous);}
+      const vertices=[];for(let axis=0;axis<3;axis++){const a=position.clone(),b=position.clone();a.setComponent(axis,a.getComponent(axis)-radius*.08);b.setComponent(axis,b.getComponent(axis)+radius*.08);vertices.push(...a.toArray(),...b.toArray());}
+      const marker=new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(vertices,3)),new THREE.LineBasicMaterial({color:0x161b20,depthTest:false}));marker.name='measurement-location';marker.renderOrder=50;e.scene.add(marker);e.invalidate();
+    },
     fit: ids => engine.current?.fit(ids),
     view: view => engine.current?.setView(view),
     orbit: (horizontal, vertical) => engine.current?.orbit(horizontal, vertical),
@@ -284,7 +296,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     for (const part of current.parts) {
       const mesh = e.meshes.get(part.id); if (!mesh) continue;
       mesh.visible = part.visible && (!current.isolated || current.isolated.includes(part.id));
-      mesh.material.color.set(partColor(part.id, current.selected));
+      mesh.material.color.set(current.selected.includes(part.id)?'#a2acb4':partColors.idle);
       mesh.material.emissive.set('#000000');
       mesh.material.emissiveIntensity = 0;
       mesh.material.transparent = ghost; mesh.material.opacity = ghost ? .2 : 1;
@@ -299,23 +311,26 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const e = engine.current; if (!e) return;
     const current = latest.current;
     const visible = new Set(current.parts.filter(part => part.visible && (!current.isolated || current.isolated.includes(part.id))).map(part => part.id));
+    const rowsById=new Map(current.relations.map(row=>[row.id,row]));
     for (const group of cachedOverlays.current.values()) {
-      const row = current.relations.find(row => row.id === group.userData.relation);
+      const row = rowsById.get(group.userData.relation);
       const thickness = group.userData.thickness as string | undefined;
       group.visible = thickness
         ? current.colourMode === 'thickness' && current.thicknessIds.includes(thickness) && visible.has(thickness)
-        : !!row && current.intersections && current.colourMode !== 'thickness' && row.part_ids.every(id => visible.has(id)) && group.userData.mode === (current.colourMode === 'fit' && row.map_ready ? 'fit' : 'solid');
+        : !!row && current.intersections && current.colourMode !== 'thickness' && row.part_ids.every(id => visible.has(id)) && (group.userData.mode === 'contact' || group.userData.mode === (current.colourMode === 'fit' && row.map_ready ? 'fit' : 'solid'));
       group.traverse(child => {
         if (!(child instanceof THREE.Mesh)) return;
         if (child.material instanceof THREE.ShaderMaterial) {
-          child.material.uniforms.scale.value = mapScale(thickness ? current.minimumThickness : current.fitTolerance);
+          child.material.uniforms.scale.value = mapScale(thickness ? current.minimumThickness : Math.max(current.fitTolerance,.001,row?.depth_max??0));
+          child.material.uniforms.margin.value = thickness ? 0 : current.fitTolerance;
+          if(!thickness)child.material.uniforms.alpha.value=group.userData.mode==='contact'?1:.96;
           if (thickness) {
             child.material.uniforms.alpha.value = current.transparent ? .2 : 1;
             child.material.transparent = current.transparent;
             child.material.depthWrite = !current.transparent;
           }
         } else if (child.material instanceof THREE.MeshBasicMaterial && row) {
-          child.material.color.set(row.kind === 'WITHIN_TOLERANCE' ? partColors.fit : row.coincident ? partColors.coincident : partColors.intersection);
+          child.material.color.set(row.kind === 'WITHIN_TOLERANCE' ? partColors.fit : partColors.intersection);
         }
       });
     }
@@ -327,7 +342,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     e.invalidate();
   }
 
-  const overlaySignature = props.relations.map(row => `${row.id}:${row.kind}:${!!row.map_ready}`).sort().join('|');
+  const overlaySignature = props.relations.map(row => `${row.id}:${row.kind}:${!!row.map_ready}:${!!row.contact_ready}`).sort().join('|');
   useEffect(() => {
     const e = engine.current; if (!e) return;
     let cancelled = false;
@@ -335,15 +350,16 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     const load = async () => {
       let success = true;
       const current = latest.current;
-      const desired = current.colourMode === 'thickness'
+      const desired: {key:string;url:string;thickness:string|undefined;mode:string;relation:string|undefined;row:Relation|undefined}[] = current.colourMode === 'thickness'
         ? current.thicknessIds.map(id => ({ key: `${current.session}:thickness:${id}`, url: `/api/sessions/${current.session}/parts/${id}/thickness`, thickness: id, mode: 'thickness', relation: undefined as string | undefined, row: undefined as Relation | undefined }))
         : current.relations.filter(row => ['INTERSECTION', 'WITHIN_TOLERANCE'].includes(row.kind)).map(row => {
           const mode = current.colourMode === 'fit' && row.map_ready ? 'fit' : 'solid';
           return { key: `${current.session}:${row.id}:${mode}`, url: `/api/sessions/${current.session}/relations/${row.id}/${mode === 'fit' ? 'fit-map' : 'intersection'}`, thickness: undefined as string | undefined, mode, relation: row.id, row };
         });
+      if(current.colourMode!=='thickness')desired.push(...current.relations.filter(row=>row.contact_ready).map(row=>({key:`${current.session}:${row.id}:contact:${current.fitTolerance}`,url:`/api/sessions/${current.session}/relations/${row.id}/contact-map`,thickness:undefined,mode:'contact',relation:row.id,row})));
       const ids = new Set(current.parts.map(part => part.id));
       for (const [key, group] of cachedOverlays.current) {
-        if ((group.userData.ids as string[]).some(id => !ids.has(id))) {
+        if ((group.userData.ids as string[]).some(id => !ids.has(id)) || group.userData.mode==='contact'&&group.userData.tolerance!==current.fitTolerance) {
           e.overlays.remove(group); dispose(group); cachedOverlays.current.delete(key);
         }
       }
@@ -358,12 +374,12 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
           const buffer = await response.arrayBuffer();
           if (cancelled) return true;
           const geometry = item.mode === 'solid' ? loader.parse(buffer) : readSurfaceMap(buffer);
-          const colour = item.row?.kind === 'WITHIN_TOLERANCE' ? partColors.fit : item.row?.coincident ? partColors.coincident : partColors.intersection;
+          const colour = item.row?.kind === 'WITHIN_TOLERANCE' ? partColors.fit : partColors.intersection;
           const material = item.mode === 'solid'
             ? new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: .94, side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false, forceSinglePass: true })
-            : mapMaterial(item.thickness ? current.minimumThickness : current.fitTolerance, !!item.thickness);
+            : mapMaterial(item.thickness ? current.minimumThickness : Math.max(current.fitTolerance,.001,item.row?.depth_max??0), !!item.thickness);
           const group = new THREE.Group();
-          group.userData = { relation: item.relation, thickness: item.thickness, mode: item.mode, ids: item.row?.part_ids ?? [item.thickness!] };
+          group.userData = { relation: item.relation, thickness: item.thickness, mode: item.mode, tolerance:current.fitTolerance, ids: item.row?.part_ids ?? [item.thickness!] };
           const mesh = new THREE.Mesh(geometry, material); mesh.renderOrder = 10; group.add(mesh);
           cachedOverlays.current.set(item.key, group); e.overlays.add(group);
           updateOverlayVisibility();
@@ -378,7 +394,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(props, ref
     return () => { cancelled = true; abort.abort(); };
   }, [overlaySignature, props.session, props.colourMode, props.thicknessIds.join('|'), props.intersections]);
 
-  useEffect(() => { updateOverlayVisibility(); }, [props.parts, props.isolated, props.transparent, props.selected, props.colourMode, props.minimumThickness, props.fitTolerance, props.thicknessIds]);
+  useEffect(() => { updateOverlayVisibility(); }, [props.parts, props.isolated, props.transparent, props.selected, props.colourMode, props.minimumThickness, props.fitTolerance, props.thicknessIds.join('|')]);
 
   return <div className="canvas-host" ref={host} aria-label={t('view3d')} />;
 });

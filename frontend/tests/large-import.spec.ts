@@ -1,0 +1,40 @@
+import {test,expect} from '@playwright/test';
+import {statSync,writeFileSync} from 'node:fs';
+
+// Run explicitly against the generated 1 GB fixture; keep normal suites small.
+const source=process.env.MODELCHECK_LARGE_STL;
+test('One GB STL uses a bounded preview, measures original faces and stays interactive afterwards',async({page},testInfo)=>{
+ test.skip(!source,'Set MODELCHECK_LARGE_STL to the generated 32 mm cube STL');
+ test.setTimeout(600000);
+ await page.goto('/');await expect(page.getByRole('button',{name:'Import STL',exact:true})).toBeEnabled({timeout:20000});
+ const imported=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/parts'),{timeout:300000});
+ const previewed=page.waitForResponse(r=>r.url().endsWith('/preview'),{timeout:300000});
+ const started=Date.now();
+ await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles(source!);
+ await expect(page.locator('.object-row')).toHaveCount(1,{timeout:300000});
+ const importSeconds=(Date.now()-started)/1000;
+ const data=await(await imported).json();expect(data.errors).toEqual([]);
+ expect(data.parts[0].size).toBe(statSync(source!).size);expect(data.parts[0].size).toBeGreaterThan(1_000_000_000);
+ expect(data.parts[0].faces).toBe(20_908_800);expect(data.parts[0].solid).toBe(true);
+ const preview=await(await previewed).body();expect((preview.length-84)/50).toBeLessThanOrEqual(300000);
+ await expect(page.locator('.geometry-loading')).toHaveCount(0,{timeout:60000});
+ await page.getByRole('button',{name:'Wall thickness analysis',exact:true}).click();
+ let posts=0,maps=0;page.on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/analysis'))posts++;if(r.url().endsWith('/thickness'))maps++;});
+ const measured=page.waitForResponse(r=>r.url().endsWith('/thickness'),{timeout:240000});
+ const measuring=Date.now();await page.getByRole('button',{name:'Measure wall thickness',exact:true}).click();
+ await expect(page.locator('.thickness-card .minimum')).toContainText('32 mm',{timeout:240000});
+ await expect(page.locator('.thickness-card .maximum')).toContainText('32 mm');
+ const map=await(await measured).body();expect(map.length).toBeLessThanOrEqual(8+300002*48);
+ const thicknessSeconds=(Date.now()-measuring)/1000;
+ const canvas=page.locator('canvas'),before=await canvas.screenshot();
+ const orbiting=Date.now();for(let i=0;i<6;i++)await page.keyboard.press('Numpad6');
+ expect(Buffer.compare(before,await canvas.screenshot())).not.toBe(0);
+ const orbitSeconds=(Date.now()-orbiting)/1000;
+ await page.getByRole('checkbox',{name:'Show thickness colours',exact:true}).uncheck();
+ await page.getByRole('checkbox',{name:'Show thickness colours',exact:true}).check();
+ await canvas.screenshot();expect(posts).toBe(1);expect(maps).toBe(1);await expect(page.getByRole('alert')).toHaveCount(0);
+ await page.screenshot({path:testInfo.outputPath('one-gb-thickness.png')});
+ const result={sourceBytes:data.parts[0].size,originalFaces:data.parts[0].faces,previewFaces:(preview.length-84)/50,mapFaces:(map.length-8)/48,importSeconds,thicknessSeconds,orbitSeconds,analysisRequests:posts,mapRequests:maps};
+ writeFileSync('/tmp/modelcheck-027-one-gb-ui.json',JSON.stringify(result,null,2));
+ await page.locator('.object-select').click();await page.locator('.object-select').press('Delete');await expect(page.locator('.object-row')).toHaveCount(0,{timeout:30000});
+});

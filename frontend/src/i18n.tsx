@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
 const en = {
+  intersectionTool:'Intersection analysis', thicknessTool:'Wall thickness analysis', measuredParts:'Measured parts', analysisTool: 'Analysis tool', importFolder: 'Import folder', newFolder: 'New folder', newSubfolder: 'New subfolder', folderName: 'Folder name', renameFolder: 'Rename folder', deleteFolder: 'Delete folder and contents', moveToFolder: 'Move to folder', chooseFolder: 'Choose destination…', sceneRoot: 'Scene', folderLabel: 'Folder: {name}', folderOptions: 'Folder options: {name}', hideFolder: 'Hide folder {name}', showFolder: 'Show folder {name}',
+  showThicknessColours: 'Show thickness colours', whiteMinimum: 'White = minimum or thicker', contact: 'Contact / fit', penetration: 'Penetration', stage_display:'Preparing display', stage_contact: 'Finding contact surfaces',
+  thicknessDimensions: 'Wall thickness measurements', thinnest: 'Thinnest', thickest: 'Thickest', requiredThickness: 'Required minimum', thicknessDeficit: 'Maximum shortfall', frameThinnest: 'Frame thinnest location', frameThickest: 'Frame thickest location', incompleteThickness: 'Some areas could not be measured.', viewPart: 'View part', notMeasured: 'Run wall thickness measurement.',
+  thicknessFinished: 'Measured {count} parts in {seconds} s', import_preview:'Preparing viewport', import_reading: 'Reading STL', import_indexing: 'Indexing mesh', import_building: 'Preparing mesh',
   surfaceProgress: '{done} / {total} faces',
   shiftEyes: 'Shift + click: show or hide all parts',
   analysisScope: 'Analysis scope', allParts: 'All parts', visibleParts: 'Visible parts',
@@ -72,6 +76,10 @@ const en = {
   reviewSaveFailed: 'Review changes could not be saved. Retry your edit before exporting.',
 };
 const pl: Record<keyof typeof en, string> = {
+  intersectionTool:'Analiza intersekcji', thicknessTool:'Analiza grubości', measuredParts:'Zmierzone części', analysisTool: 'Narzędzie analizy', importFolder: 'Importuj folder', newFolder: 'Nowy folder', newSubfolder: 'Nowy podfolder', folderName: 'Nazwa folderu', renameFolder: 'Zmień nazwę folderu', deleteFolder: 'Usuń folder i zawartość', moveToFolder: 'Przenieś do folderu', chooseFolder: 'Wybierz miejsce…', sceneRoot: 'Scena', folderLabel: 'Folder: {name}', folderOptions: 'Opcje folderu: {name}', hideFolder: 'Ukryj folder {name}', showFolder: 'Pokaż folder {name}',
+  showThicknessColours: 'Pokaż kolory grubości', whiteMinimum: 'Biały = minimum lub grubsze', contact: 'Kontakt / dopasowanie', penetration: 'Przenikanie', stage_display:'Przygotowanie podglądu', stage_contact: 'Wyznaczanie powierzchni kontaktu',
+  thicknessDimensions: 'Wymiary grubości ścianek', thinnest: 'Najcieńsze', thickest: 'Najgrubsze', requiredThickness: 'Wymagane minimum', thicknessDeficit: 'Największy brak grubości', frameThinnest: 'Przybliż najcieńsze miejsce', frameThickest: 'Przybliż najgrubsze miejsce', incompleteThickness: 'Niektórych miejsc nie udało się zmierzyć.', viewPart: 'Pokaż część', notMeasured: 'Uruchom pomiar grubości.',
+  thicknessFinished: 'Zmierzono {count} części w {seconds} s', import_preview:'Przygotowanie widoku', import_reading: 'Odczytywanie STL', import_indexing: 'Indeksowanie siatki', import_building: 'Przygotowanie siatki',
   surfaceProgress: 'Ściany: {done} / {total}',
   shiftEyes: 'Shift + klik: pokaż lub ukryj wszystkie części',
   analysisScope: 'Zakres analizy', allParts: 'Wszystkie części', visibleParts: 'Widoczne części',

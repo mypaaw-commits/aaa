@@ -33,16 +33,16 @@ test('Camera saves the current 3D image as PNG by default, JPEG or WebP, with re
       const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
       const context = canvas.getContext('2d')!; context.drawImage(bitmap, 0, 0);
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      let red = 0, blue = 0;
+      let red = 0, neutral = 0;
       for (let i=0; i<pixels.length; i+=4) {
         if (pixels[i]>160 && pixels[i]>pixels[i+1]*1.5 && pixels[i]>pixels[i+2]*1.5) red++;
-        if (pixels[i+2]>pixels[i]*1.3 && pixels[i+2]>pixels[i+1]*1.1) blue++;
+        if (pixels[i]>90&&pixels[i]<210&&Math.max(pixels[i],pixels[i+1],pixels[i+2])-Math.min(pixels[i],pixels[i+1],pixels[i+2])<35) neutral++;
       }
-      bitmap.close(); return { width: canvas.width, height: canvas.height, red, blue };
+      bitmap.close(); return { width: canvas.width, height: canvas.height, red, neutral };
     }, { bytes: [...bytes], kind });
     expect({ width: image.width, height: image.height }).toEqual(dimensions);
     expect(image.red).toBeGreaterThan(50);
-    expect(image.blue).toBeGreaterThan(50);
+    expect(image.neutral).toBeGreaterThan(50);
   }
   await expect(page.locator('.object-row[aria-selected=true]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'Transparency', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -65,7 +65,7 @@ test('Screenshot waits for the overlay instead of downloading an incomplete fram
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   let overlays = 0;
-  await page.route('**/relations/*/intersection', async route => { overlays++; await gate; await route.continue(); });
+  await page.route('**/relations/*/fit-map', async route => { overlays++; await gate; await route.continue(); });
   const downloads: string[] = [];
   page.on('download', download => downloads.push(download.suggestedFilename()));
   try {

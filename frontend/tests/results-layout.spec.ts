@@ -3,7 +3,7 @@ import { loadExample, stlBox } from './fixtures';
 
 test('Analysis combines connections and checks in one group per part, with useful filters and a separate checklist', async ({ page }, testInfo) => {
   await page.goto('/'); await loadExample(page);
-  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tab')).toHaveCount(3);
   await expect(page.getByRole('tab', { name: 'Connections', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.locator('.analysis-heading')).toHaveText('1 intersection pair');
@@ -12,7 +12,7 @@ test('Analysis combines connections and checks in one group per part, with usefu
   await expect(page.locator('#checks-panel .pair-status')).toHaveText(['Intersection', 'Connected']);
   await expect(page.locator('#checks-panel .pair-actions button')).toHaveCount(2);
   const requests: string[] = [];
-  page.on('request', request => { if (request.url().endsWith('/intersection')) requests.push(request.url()); });
+  page.on('request', request => { if (request.url().endsWith('/fit-map')) requests.push(request.url()); });
   await page.getByRole('button', { name: 'Intersections', exact: true }).click();
   await expect(page.locator('.connection-group-toggle')).toHaveCount(2);
   await expect(page.locator('#checks-panel .pair-status')).toHaveText('Intersection');
@@ -22,8 +22,8 @@ test('Analysis combines connections and checks in one group per part, with usefu
   await expect(page.locator('.connection-group-toggle')).toHaveCount(3);
   expect(requests).toHaveLength(0); // isolation and filters reuse the loaded result
   await page.screenshot({ path: testInfo.outputPath('checks-groups.png') });
-  const analysis = page.getByRole('tab', { name: 'Analysis', exact: true });
-  await analysis.focus(); await analysis.press('ArrowRight');
+  const analysis = page.getByRole('tab', { name: 'Intersections', exact: true });
+  await analysis.focus(); await analysis.press('End');
   await expect(page.getByRole('tab', { name: 'Part checklist', exact: true })).toBeFocused();
   await page.getByRole('checkbox', { name: 'Reviewed: B.stl', exact: true }).check();
   await expect(page.getByRole('checkbox', { name: 'Reviewed: C.stl', exact: true })).not.toBeChecked();
@@ -45,7 +45,7 @@ test('Uncertain pairs have one inspection action and remain manually reviewed', 
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
   const broken = stlBox('open.stl', 0);
   broken.buffer = Buffer.from(broken.buffer.toString().replace(/facet normal[^]*?endfacet\n/, ''));
-  await page.locator('input[type=file]').setInputFiles([stlBox('A.stl',0),broken]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('A.stl',0),broken]);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Needs review', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Needs review', exact: true }).click();

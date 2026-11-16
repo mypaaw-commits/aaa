@@ -8,6 +8,7 @@ import re
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -29,65 +30,103 @@ def box_stl(x):
     return ('\n'.join(lines + ['endsolid box']) + '\n').encode()
 
 
-def check_workflow(base, offset, expected):
-    def request(path, data=None, content_type='application/json', method=None):
-        req = Request(base + path, data=data, headers={'Content-Type': content_type}, method=method)
-        with urlopen(req, timeout=30) as response:
-            return response.read()
+def api_request(base,path,data=None,content_type='application/json',method=None,headers=None):
+    req=Request(base+path,data=data,headers={'Content-Type':content_type,**(headers or {})},method=method)
+    with urlopen(req,timeout=180) as response:return response.read()
 
-    sid = json.loads(request('/api/sessions', b''))['id']
-    prefix = f'/api/sessions/{sid}'
+
+def wait_job(request,prefix):
+    for _ in range(1200):
+        result=json.loads(request(prefix+'/analysis'))
+        if result['job']['state']!='running':
+            assert result['job']['state']=='done',result
+            return result
+        time.sleep(.1)
+    raise AssertionError('Portable analysis did not finish')
+
+
+def check_map(request,path):
+    content=request(path)
+    assert content[:4]==b'MCM2','Measurement map missing'
+    faces,=struct.unpack('<I',content[4:8])
+    assert faces and len(content)==8+48*faces,'Measurement map truncated'
+    return content
+
+
+def check_workflow(base,offset,expected):
+    request=lambda path,*args,**kw:api_request(base,path,*args,**kw)
+    sid=json.loads(request('/api/sessions',b''))['id'];prefix=f'/api/sessions/{sid}'
     try:
-        boundary = 'modelcheck-portable-smoke-boundary'
-        body = b''
-        for name, x in [('A.stl', 0), ('B.stl', offset)]:
-            body += (f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="{name}"\r\n'
-                     'Content-Type: model/stl\r\n\r\n').encode() + box_stl(x) + b'\r\n'
-        body += f'--{boundary}--\r\n'.encode()
-        imported = json.loads(request(prefix + '/parts', body, f'multipart/form-data; boundary={boundary}'))
-        assert not imported['errors'] and len(imported['parts']) == 2, imported
-        assert all(part['solid'] for part in imported['parts']), imported
-        source = request(prefix + f"/parts/{imported['parts'][0]['id']}/stl")
-        assert len(source) == 684, 'Source STL export is missing or invalid'
-        json.loads(request(prefix + '/analysis', b'{"fit_map":true,"thickness":true}'))
-        for _ in range(300):
-            result = json.loads(request(prefix + '/analysis'))
-            if result['job']['state'] != 'running':
-                break
-            time.sleep(.1)
-        assert result['job']['state'] == 'done', result
-        relation, = result['relations']
-        assert relation['kind'] == expected, result
-        assert len(result['tasks']) == 2 and all(not row['done'] for row in result['tasks']), result
-        assert all(abs(row['thickness']['minimum'] - 2) < 1e-5 for row in result['tasks']), result
-        def check_map(path):
-            content = request(prefix + path)
-            assert content[:4] == b'MCM2', 'Measurement map is missing'
-            faces, = struct.unpack('<I', content[4:8])
-            assert faces and len(content) == 8 + 48 * faces, 'Measurement map is truncated'
-            return content
-        check_map(f"/relations/{relation['id']}/fit-map")
-        thickness = check_map(f"/parts/{imported['parts'][0]['id']}/thickness")
-        settings = json.loads(request(prefix + '/thickness-settings', b'{"minimum":3}', method='PATCH'))
-        assert all(row['thickness']['thin_faces'] == 12 for row in settings['tasks']), settings
-        assert check_map(f"/parts/{imported['parts'][0]['id']}/thickness") == thickness, 'Threshold change replaced measured geometry'
-        overlay = request(prefix + f"/relations/{relation['id']}/intersection")
-        assert len(overlay) > 84, 'Native intersection geometry is missing'
-        for language in ('en', 'pl'):
-            report = request(prefix + '/report', json.dumps({'language': language}).encode())
-            assert report.startswith(b'%PDF-'), 'PDF generation or embedded fonts failed'
-        if expected == 'WITHIN_TOLERANCE':
-            settings = json.loads(request(prefix + '/settings', b'{"fit_tolerance":0}', method='PATCH'))
-            assert settings['fit_tolerance'] == 0 and all(task['stale'] for task in settings['tasks'])
-            request(prefix + '/analysis', b'{}')
-            for _ in range(300):
-                strict_result = json.loads(request(prefix + '/analysis'))
-                if strict_result['job']['state'] != 'running':
-                    break
-                time.sleep(.1)
-            assert strict_result['job']['state'] == 'done' and strict_result['relations'][0]['kind'] == 'INTERSECTION', strict_result
-    finally:
-        request(prefix + '/close', b'')
+        boundary='modelcheck-portable-boundary';body=b''
+        for name,x in [('A.stl',0),('B.stl',offset)]:
+            body+=(f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="Set/{name}"\r\nContent-Type: model/stl\r\n\r\n').encode()+box_stl(x)+b'\r\n'
+        body+=f'--{boundary}--\r\n'.encode()
+        imported=json.loads(request(prefix+'/parts',body,f'multipart/form-data; boundary={boundary}'))
+        assert not imported['errors'] and len(imported['parts'])==2,imported
+        assert all(part['solid'] and part['folder_id'] for part in imported['parts']),imported
+        assert [folder['name'] for folder in imported['folders']]==['Set'],imported
+        first=imported['parts'][0]['id']
+        assert len(request(prefix+f'/parts/{first}/stl'))==684,'Source STL missing'
+        request(prefix+'/analysis',b'{"check":"INTERSECTIONS"}')
+        result=wait_job(request,prefix);relation,=result['relations']
+        assert relation['kind']==expected,result
+        assert len(result['tasks'])==2 and all(not task['done'] for task in result['tasks']),result
+        check_map(request,prefix+f"/relations/{relation['id']}/"+('contact-map' if expected=='WITHIN_TOLERANCE' else 'fit-map'))
+        assert len(request(prefix+f"/relations/{relation['id']}/intersection"))>84
+        request(prefix+'/analysis',b'{"check":"THICKNESS"}')
+        measured=wait_job(request,prefix)
+        assert measured['relations']==result['relations'],'Wall measurement changed pair findings'
+        walls=[task for task in measured['tasks'] if task['check']=='THICKNESS']
+        assert len(walls)==2 and all(abs(task['thickness']['minimum']-2)<1e-5 for task in walls),measured
+        thickness=check_map(request,prefix+f'/parts/{first}/thickness')
+        settings=json.loads(request(prefix+'/thickness-settings',b'{"minimum":3}',method='PATCH'))
+        assert all(task['thickness']['thin_faces']==12 and task['result']=='INTERSECTION' for task in settings['tasks'] if task['check']=='THICKNESS'),settings
+        assert check_map(request,prefix+f'/parts/{first}/thickness')==thickness
+        folder=json.loads(request(prefix+'/folders',b'{"name":"Reviewed"}'))
+        request(prefix+'/parts-folder',json.dumps({'part_ids':[first],'folder_id':folder['id']}).encode(),method='PATCH')
+        for language in ('en','pl'):
+            assert request(prefix+'/report',json.dumps({'language':language}).encode()).startswith(b'%PDF-')
+        if expected=='WITHIN_TOLERANCE':
+            settings=json.loads(request(prefix+'/settings',b'{"fit_tolerance":0}',method='PATCH'))
+            assert all(task['stale'] for task in settings['tasks'] if task['check']=='INTERSECTIONS')
+            assert all(not task['stale'] for task in settings['tasks'] if task['check']=='THICKNESS')
+            request(prefix+'/analysis',b'{"check":"INTERSECTIONS"}')
+            strict=wait_job(request,prefix)
+            assert strict['relations'][0]['kind']=='INTERSECTION',strict
+    finally:request(prefix+'/close',b'')
+
+
+def check_disk_import(base,root,process_id):
+    # Generate through the source harness; the extracted child cannot import
+    # source modules or use the harness's installed Python packages.
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+    from backend.benchmark_import import generate_cube
+    fixture=root/'dense fixture.stl';count=generate_cube(fixture,342)
+    request=lambda path,*args,**kw:api_request(base,path,*args,**kw)
+    sid=json.loads(request('/api/sessions',b''))['id'];prefix=f'/api/sessions/{sid}'
+    try:
+        boundary='modelcheck-large-spool'
+        head=(f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="Dense/model.stl"\r\nContent-Type: model/stl\r\n\r\n').encode()
+        tail=f'\r\n--{boundary}--\r\n'.encode()
+        def chunks():
+            yield head
+            with fixture.open('rb') as stream:
+                while block:=stream.read(1024*1024):yield block
+            yield tail
+        imported=json.loads(request(prefix+'/parts',chunks(),f'multipart/form-data; boundary={boundary}',headers={'Content-Length':str(len(head)+fixture.stat().st_size+len(tail))}))
+        assert not imported['errors'] and imported['parts'][0]['faces']==count and imported['parts'][0]['solid'],imported
+        pid=imported['parts'][0]['id']
+        preview=request(prefix+f'/parts/{pid}/preview')
+        assert (len(preview)-84)//50<=300000,'Viewport received the full dense source'
+        request(prefix+'/analysis',b'{"check":"THICKNESS"}')
+        measured=wait_job(request,prefix);wall=measured['tasks'][0]['thickness']
+        assert abs(wall['minimum']-32)<1e-5 and abs(wall['maximum']-32)<1e-5,wall
+        assert len(check_map(request,prefix+f'/parts/{pid}/thickness'))<=8+300002*48
+    finally:request(prefix+'/close',b'')
+    for _ in range(100):
+        if not list(Path(tempfile.gettempdir()).glob(f'ModelCheck mesh {process_id} *')):break
+        time.sleep(.1)
+    else:raise AssertionError('Disk-backed STL mappings were not cleaned up after session close')
 
 
 def main():
@@ -154,7 +193,8 @@ def main():
                     assert response.read(), f'Missing bundled frontend asset: {asset}'
             check_workflow(base, 1.5, 'INTERSECTION')
             check_workflow(base, 1.9995, 'WITHIN_TOLERANCE')
-            print(f"PASS: portable {info['platform']} {info['version']}: frontend, STL import, native overlap/fit, rainbow fit/thickness maps, cached threshold changes, source/overlay STL and EN/PL PDF; no Python/Node in PATH")
+            check_disk_import(base,root,process.pid)
+            print(f"PASS: portable {info['platform']} {info['version']}: frontend, STL import, native overlap/fit, contact/depth/thickness maps, independent reviews, folders, 70 MB disk-backed import with bounded preview/map and cleanup, cached thresholds, source STL and EN/PL PDF; no Python/Node in PATH")
         except BaseException:
             while not lines.empty():
                 log.append(lines.get_nowait())

@@ -30,14 +30,14 @@ test('Transparency is independent of analysis, selection and intersection overla
   await expect(page.locator('.review-row input:checked')).toHaveCount(0);
 });
 
-test('Coincidence is purple but object selection stays blue and reviews remain manual', async ({ page }, testInfo) => {
+test('Coincidence is labelled explicitly and reviews remain manual', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Import STL', exact: true })).toBeEnabled();
-  await page.locator('input[type=file]').setInputFiles([stlBox('original.stl', 0, 8), stlBox('copy.stl', 0, 8), stlBox('other.stl', 20, 8)]);
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles([stlBox('original.stl', 0, 8), stlBox('copy.stl', 0, 8), stlBox('other.stl', 20, 8)]);
   await expect(page.locator('.object-row')).toHaveCount(3);
   await page.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Analyze', exact: true })).toBeEnabled();
-  await page.getByRole('tab', { name: 'Analysis', exact: true }).click();
+  await page.getByRole('tab', { name: 'Intersections', exact: true }).click();
   await page.getByRole('button', { name: 'Part results: copy.stl', exact: true }).click();
   await expect(page.locator('#checks-panel .coincident-label')).toHaveText('Coincident');
   await page.getByRole('button', { name: 'Select pair: copy.stl / original.stl', exact: true }).click();

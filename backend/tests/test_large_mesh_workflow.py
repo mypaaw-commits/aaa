@@ -43,7 +43,7 @@ def test_upload_reuses_the_spooled_file_and_checks_actual_size(monkeypatch):
     too_large = UploadFile(io.BytesIO(data + b'x'), filename='over.stl', size=1)
     result = asyncio.run(main.import_parts(sid, [too_large]))
     assert result['parts'] == []
-    assert result['errors'] == [{'name': 'over.stl', 'message': 'Przekroczono limit 200 MB na plik.'}]
+    assert result['errors'] == [{'name': 'over.stl', 'message': 'Maximum STL size is 1 GiB.'}]
     assert len(seen) == 1
 
 
@@ -87,10 +87,10 @@ def test_dense_witness_and_extended_probes_match_full_erosion(monkeypatch, depth
     assert fast == reference
 
 
-def test_old_split_analysis_modes_are_rejected():
+def test_removed_relations_mode_is_rejected():
     sid = session()
     client.post(f'/api/sessions/{sid}/demo')
-    for mode in ('RELATIONS', 'INTERSECTIONS'):
+    for mode in ('RELATIONS',):
         assert client.post(f'/api/sessions/{sid}/analysis', json={'check': mode}).status_code == 422
 
 
